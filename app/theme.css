@@ -1,0 +1,149 @@
+/**
+ * AG Outbound booking — design tokens.
+ *
+ * Colour and type values are lifted from the live agoutbound site so the booking page is
+ * recognisably the same system rather than an approximation of it. They are not invented
+ * here; if the site's palette moves, this file is what gets updated.
+ *
+ * Dark only, deliberately. The site is dark, and a booking page that flips to a white card
+ * mid-funnel reads as a different company — which is the exact trust problem this flow
+ * cannot afford at the moment a prospect decides to commit time.
+ */
+
+/* Fonts are loaded by next/font in app/layout.tsx, which self-hosts them — there is
+   deliberately no @import of fonts.googleapis.com here, because that would reintroduce the
+   render-blocking request next/font exists to remove. */
+
+:root {
+  /* ── Surfaces, darkest first. Depth comes from layering these, never from shadow. ── */
+  --ink: #07080a;
+  --ink-2: #0b0d11;
+  --ink-3: #101319;
+
+  --line: rgba(255, 255, 255, 0.1);
+  --line-2: rgba(255, 255, 255, 0.06);
+  --surface: rgba(255, 255, 255, 0.035);
+  --surface-2: rgba(255, 255, 255, 0.06);
+
+  /* ── Text. --mute is for supporting copy; --mute-2 only for genuinely tertiary text. ── */
+  --white: #ffffff;
+  --mute: rgba(255, 255, 255, 0.64);
+  --mute-2: rgba(255, 255, 255, 0.52);
+
+  /* ── Accent. --blue for fills, --blue-lite for text and focus rings on dark, where the
+       base blue does not carry enough contrast against --ink to be read comfortably. ── */
+  --blue: #2f5bff;
+  --blue-hi: #5b7cff;
+  --blue-lite: #7693ff;
+  --blue-glow: rgba(47, 91, 255, 0.42);
+
+  /* ── State. Used sparingly: a booking flow should not look like a dashboard. ── */
+  --warn: #ffb020;
+  --bad: #ff6b6b;
+  --good: #46d39a;
+
+  /* ── Type ── */
+  --display: var(--font-display), "Archivo", -apple-system, "Helvetica Neue", Arial, sans-serif;
+  --sans: var(--font-sans), "Schibsted Grotesk", -apple-system, "Helvetica Neue", Arial, sans-serif;
+
+  /* Scales from 375px to desktop without a breakpoint. The top end is restrained on
+     purpose — this is a utility flow with editorial character, not a landing page. */
+  --t-hero: clamp(1.75rem, 1.35rem + 1.7vw, 2.5rem);
+  --t-title: clamp(1.25rem, 1.1rem + 0.65vw, 1.5rem);
+  --t-body: clamp(1rem, 0.97rem + 0.15vw, 1.0625rem);
+  --t-small: 0.875rem;
+  --t-micro: 0.75rem;
+
+  --lh-tight: 1.1;
+  --lh-title: 1.25;
+  --lh-body: 1.55;
+
+  /* ── Space. A 4px rhythm; every gap below is a multiple, no arbitrary values. ── */
+  --s-1: 4px;
+  --s-2: 8px;
+  --s-3: 12px;
+  --s-4: 16px;
+  --s-5: 24px;
+  --s-6: 32px;
+  --s-7: 48px;
+  --s-8: 64px;
+
+  --pad: clamp(20px, 5vw, 40px);
+  --shell: 560px; /* narrower than the site's 1180 — this is one column of decisions */
+
+  /* ── Shape ── */
+  --r-sm: 8px;
+  --r-md: 12px;
+  --r-lg: 18px;
+
+  /* ── Motion ── */
+  --ease: cubic-bezier(0.22, 1, 0.36, 1);
+  --fast: 120ms;
+  --med: 240ms;
+
+  /* ── Controls. 48px is the floor, not a target: a cold email is opened one-handed on a
+       phone, and undersized tap targets are a documented cause of failed bookings. ── */
+  --tap: 48px;
+}
+
+/* Honour the system setting rather than animating regardless. */
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --fast: 0ms;
+    --med: 0ms;
+  }
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html {
+  /* Never let iOS inflate type in landscape — it breaks the slot grid. */
+  -webkit-text-size-adjust: 100%;
+}
+
+body {
+  margin: 0;
+  background: var(--ink);
+  color: var(--white);
+  font-family: var(--sans);
+  font-size: var(--t-body);
+  line-height: var(--lh-body);
+  -webkit-font-smoothing: antialiased;
+}
+
+h1,
+h2,
+h3 {
+  font-family: var(--display);
+  line-height: var(--lh-tight);
+  letter-spacing: -0.02em;
+  margin: 0;
+}
+
+/* Times and dates must align in a column. Proportional numerals make a time list look
+   ragged and are genuinely harder to scan. */
+time,
+.tabular {
+  font-variant-numeric: tabular-nums;
+}
+
+button {
+  font: inherit;
+  color: inherit;
+}
+
+/* One visible focus treatment everywhere, and only for keyboard users. On this palette a
+   default browser outline disappears into the background entirely. */
+:focus-visible {
+  outline: 2px solid var(--blue-lite);
+  outline-offset: 2px;
+  border-radius: var(--r-sm);
+}
+
+:focus:not(:focus-visible) {
+  outline: none;
+}
