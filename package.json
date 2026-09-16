@@ -6,15 +6,18 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "test": "node --test lib/**/*.test.ts"
   },
   "dependencies": {
+    "luxon": "^3.7.2",
     "next": "16.3.5",
     "react": "19.2.8",
     "react-dom": "19.2.8"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4",
+    "@types/luxon": "^3.7.5",
     "@types/node": "^20",
     "@types/react": "^19",
     "@types/react-dom": "^19",
