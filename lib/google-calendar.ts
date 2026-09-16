@@ -21,9 +21,14 @@ export type Connection = {
 };
 
 export class ConnectionNeedsReconsent extends Error {
-  constructor(public readonly connectionId: string, cause?: unknown) {
+  // Not a TS parameter property — Node's strip-only TypeScript mode cannot emit those, and
+  // the test suite runs these files directly with no build step.
+  readonly connectionId: string;
+
+  constructor(connectionId: string, cause?: unknown) {
     super(`connection ${connectionId} needs reconsent`);
     this.name = "ConnectionNeedsReconsent";
+    this.connectionId = connectionId;
     this.cause = cause;
   }
 }

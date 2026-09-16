@@ -33,6 +33,8 @@ export type BookingRequest = {
   attendeeName: string;
   attendeeEmail: string;
   attendeeTz: string;
+  /** The one optional free-text box on the confirm step. */
+  note: string | null;
 };
 
 /**
@@ -81,11 +83,21 @@ export function validateRequestShape(body: unknown): BookingRequest | null {
   if (typeof email !== "string" || !EMAIL.test(email) || email.length > 320) return null;
   if (!isIanaZone(tz)) return null;
 
+  // Optional, but if present it must be a string of sane length — an unbounded free-text
+  // field is an unbounded row, and it ends up rendered in a calendar invite.
+  let note: string | null = null;
+  if (b.note !== undefined && b.note !== null) {
+    if (typeof b.note !== "string" || b.note.length > 2000) return null;
+    const trimmed = b.note.trim();
+    note = trimmed.length > 0 ? trimmed : null;
+  }
+
   return {
     start: new Date(start).toISOString(),
     attendeeName: name.trim(),
     attendeeEmail: email.trim().toLowerCase(),
     attendeeTz: tz,
+    note,
   };
 }
 

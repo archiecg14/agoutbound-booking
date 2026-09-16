@@ -36,6 +36,7 @@ const request = {
   attendeeName: "Jane Doe",
   attendeeEmail: "jane@example.com",
   attendeeTz: "Europe/London",
+  note: null,
 };
 
 type DecideArgs = Parameters<typeof decideBooking>[0];
@@ -64,6 +65,22 @@ test("a well-formed request is accepted and normalised", () => {
   assert.equal(r.attendeeName, "Jane Doe", "trimmed");
   assert.equal(r.attendeeEmail, "jane@example.com", "lowercased");
   assert.equal(r.start, "2026-01-05T09:00:00.000Z", "normalised to ISO");
+});
+
+test("the optional note is trimmed, and blank means absent", () => {
+  const withNote = validateRequestShape({ ...request, note: "  hiring 3 field engineers  " });
+  assert.equal(withNote?.note, "hiring 3 field engineers");
+
+  for (const blank of ["", "   ", null, undefined]) {
+    const r = validateRequestShape({ ...request, note: blank });
+    assert.equal(r?.note, null, `blank note ${JSON.stringify(blank)} should be null, not ""`);
+  }
+});
+
+test("an oversized or non-string note is rejected outright", () => {
+  // It ends up in a calendar invite and a database row; unbounded is not an option.
+  assert.equal(validateRequestShape({ ...request, note: "x".repeat(2001) }), null);
+  assert.equal(validateRequestShape({ ...request, note: 42 }), null);
 });
 
 test("malformed requests are rejected", () => {
