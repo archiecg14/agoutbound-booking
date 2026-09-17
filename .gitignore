@@ -39,3 +39,7 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# .env* above would swallow the template too. It holds no secrets, only placeholders,
+# and SETUP.md tells people to copy it.
+!.env.example
