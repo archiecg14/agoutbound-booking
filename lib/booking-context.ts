@@ -151,6 +151,77 @@ export async function loadBookingContext(
   };
 }
 
+export type ManagedBooking = {
+  id: string;
+  clientId: string;
+  eventTypeId: string;
+  status: string;
+  startUtc: string;
+  endUtc: string;
+  googleEventId: string | null;
+  attendeeEmail: string;
+  attendeeTz: string;
+  clientName: string;
+  eventName: string;
+  eventType: {
+    durationMin: number;
+    bufferBeforeMin: number;
+    bufferAfterMin: number;
+    minNoticeMin: number;
+    dateRangeDays: number;
+  };
+  connection: { id: string; refreshToken: string };
+};
+
+/** Load one booking and everything needed to move or cancel it. */
+export async function loadBookingById(
+  db: SupabaseClient,
+  bookingId: string,
+): Promise<ManagedBooking | null> {
+  const { data: b } = await db
+    .from("bookings")
+    .select(
+      "id, client_id, event_type_id, connection_id, status, start_utc, end_utc, google_event_id, attendee_email, attendee_tz",
+    )
+    .eq("id", bookingId)
+    .maybeSingle();
+  if (!b) return null;
+
+  const [{ data: conn }, { data: client }, { data: et }] = await Promise.all([
+    db.from("connections").select("id, refresh_token_enc, status").eq("id", b.connection_id).maybeSingle(),
+    db.from("clients").select("name").eq("id", b.client_id).maybeSingle(),
+    db.from("event_types").select("name, duration_min, buffer_before, buffer_after, min_notice_min, date_range_days").eq("id", b.event_type_id).maybeSingle(),
+  ]);
+  if (!conn) return null;
+
+  return {
+    id: b.id,
+    clientId: b.client_id,
+    eventTypeId: b.event_type_id,
+    status: b.status,
+    startUtc: b.start_utc,
+    endUtc: b.end_utc,
+    googleEventId: b.google_event_id,
+    attendeeEmail: b.attendee_email,
+    attendeeTz: b.attendee_tz,
+    clientName: client?.name ?? "",
+    eventName: et?.name ?? "",
+    eventType: {
+      durationMin: et?.duration_min ?? 30,
+      bufferBeforeMin: et?.buffer_before ?? 0,
+      bufferAfterMin: et?.buffer_after ?? 0,
+      minNoticeMin: et?.min_notice_min ?? 0,
+      dateRangeDays: et?.date_range_days ?? 30,
+    },
+    connection: {
+      id: conn.id,
+      refreshToken: isEncrypted(conn.refresh_token_enc)
+        ? decryptSecret(conn.refresh_token_enc)
+        : conn.refresh_token_enc,
+    },
+  };
+}
+
 export class CalendarUnavailable extends Error {
   // Declared and assigned rather than a TS parameter property: Node runs these files with
   // strip-only type removal, which cannot emit the implicit assignment a parameter property
@@ -169,12 +240,31 @@ export class CalendarUnavailable extends Error {
  * Slots for a window. Busy time is Google's freebusy plus our own confirmed bookings —
  * both are needed, because a booking made seconds ago may not be on the calendar yet.
  */
+/** The minimum availabilityFor needs. BookingContext satisfies it structurally, and so
+ *  does a booking being rescheduled — which has no link token to load a context from. */
+export type AvailabilityInput = {
+  connection: { id: string; refreshToken: string };
+  eventType: {
+    durationMin: number;
+    bufferBeforeMin: number;
+    bufferAfterMin: number;
+    minNoticeMin: number;
+    dateRangeDays: number;
+  };
+};
+
 export async function availabilityFor(
   db: SupabaseClient,
-  ctx: BookingContext,
+  ctx: AvailabilityInput,
   fromIso: string,
   toIso: string,
   now: string,
+  /**
+   * A booking being rescheduled must not be blocked by its own existing slot. Both our row
+   * and the Google event occupy that window, so without this an attendee moving a call by
+   * fifteen minutes can be refused by the buffer around the meeting they are moving.
+   */
+  excludeInterval?: Interval,
 ): Promise<Interval[]> {
   const [{ data: rules }, { data: overrides }, { data: existing }] = await Promise.all([
     db
@@ -213,10 +303,18 @@ export async function availabilityFor(
     throw new CalendarUnavailable(false);
   }
 
-  const busy: Interval[] = [
+  let busy: Interval[] = [
     ...googleBusy,
     ...(existing ?? []).map((b) => ({ start: b.start_utc as string, end: b.end_utc as string })),
   ];
+
+  if (excludeInterval) {
+    // Matched on the exact window, since freebusy returns no event ids to match on. Two
+    // genuinely distinct meetings occupying the identical window is indistinguishable here,
+    // but that is already a double-booking and is reconcile.py's problem, not this one's.
+    const ex = { s: Date.parse(excludeInterval.start), e: Date.parse(excludeInterval.end) };
+    busy = busy.filter((b) => !(Date.parse(b.start) === ex.s && Date.parse(b.end) === ex.e));
+  }
 
   return computeSlots({
     rules: (rules ?? []).map((r) => ({

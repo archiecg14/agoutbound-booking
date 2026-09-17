@@ -132,3 +132,37 @@ export async function createEvent(
   if (!json.id) throw new Error("event insert returned no id");
   return json;
 }
+
+/** Move an existing event. PATCH, so fields we do not send are left alone. */
+export async function patchEventTime(
+  conn: Connection,
+  eventId: string,
+  startIso: string,
+  endIso: string,
+): Promise<void> {
+  const token = await accessTokenFor(conn);
+  const res = await fetch(`${EVENTS_URL}/${encodeURIComponent(eventId)}?sendUpdates=all`, {
+    method: "PATCH",
+    headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+    body: JSON.stringify({
+      start: { dateTime: startIso, timeZone: "UTC" },
+      end: { dateTime: endIso, timeZone: "UTC" },
+    }),
+  });
+  if (!res.ok) throw new Error(`event patch failed: ${res.status} ${await res.text()}`);
+}
+
+/**
+ * Remove an event. A 404 or 410 is success, not failure: the event is already gone, which
+ * is the state we were asking for. Treating it as an error would strand a cancellation
+ * that had actually worked.
+ */
+export async function deleteEvent(conn: Connection, eventId: string): Promise<void> {
+  const token = await accessTokenFor(conn);
+  const res = await fetch(`${EVENTS_URL}/${encodeURIComponent(eventId)}?sendUpdates=all`, {
+    method: "DELETE",
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  if (res.ok || res.status === 404 || res.status === 410) return;
+  throw new Error(`event delete failed: ${res.status} ${await res.text()}`);
+}

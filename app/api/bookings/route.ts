@@ -33,6 +33,7 @@ import {
   loadBookingContext,
 } from "@/lib/booking-context";
 import { createEvent } from "@/lib/google-calendar";
+import { manageUrl, mintManageToken } from "@/lib/manage";
 
 const DAY_MS = 86_400_000;
 
@@ -151,12 +152,20 @@ export async function POST(request: Request) {
   }
 
   // Calendar write. Allowed to fail; reconcile.py picks up google_event_id IS NULL.
+  //
+  // The manage link goes in the event description because the calendar invite is the ONLY
+  // thing we send — there is no confirmation email from us by design. Without this the
+  // attendee has no way to reschedule or cancel and will simply not turn up.
+  const manageLine = process.env.APP_BASE_URL
+    ? `Need to change this? ${manageUrl(process.env.APP_BASE_URL, mintManageToken(booking.id, booking.end_utc))}`
+    : null;
+
   try {
     const event = await createEvent(
       { id: connection.id, refreshToken: connection.refreshToken },
       {
         summary: eventType.name,
-        description: req.note ?? undefined,
+        description: [req.note, manageLine].filter(Boolean).join("\n\n") || undefined,
         startIso: booking.start_utc,
         endIso: booking.end_utc,
         attendeeEmail: req.attendeeEmail,
