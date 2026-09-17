@@ -126,7 +126,31 @@ def read_ledger(path):
     return rows, migrated
 
 
-def read_bookings(client_slug):
+
+def resolve_client_id(slug):
+    """Map the config's client slug to the clients.id UUID that bookings are keyed by.
+
+    The client config carries `client` (e.g. "mka"), while bookings.client_id is a UUID
+    foreign key. Filtering bookings by the slug would match nothing and report a perfectly
+    clean, entirely fictional result -- the worst possible failure for a checker.
+    """
+    import urllib.parse, urllib.request, ssl
+    url = os.environ.get("SUPABASE_URL")
+    key = os.environ.get("SUPABASE_SERVICE_ROLE_KEY")
+    if not url or not key:
+        raise SystemExit("SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY must be set")
+    q = urllib.parse.urlencode({"select": "id", "slug": f"eq.{slug}"})
+    req = urllib.request.Request(
+        f"{url.rstrip('/')}/rest/v1/clients?{q}",
+        headers={"apikey": key, "Authorization": f"Bearer {key}", "User-Agent": UA},
+    )
+    with urllib.request.urlopen(req, timeout=30, context=ssl.create_default_context()) as res:
+        rows = json.loads(res.read().decode("utf-8"))
+    if not rows:
+        raise SystemExit(f"no client row with slug '{slug}' -- has it been seeded?")
+    return rows[0]["id"]
+
+def read_bookings(client_id):
     url = os.environ.get("SUPABASE_URL")
     key = os.environ.get("SUPABASE_SERVICE_ROLE_KEY")
     if not url or not key:
@@ -135,7 +159,7 @@ def read_bookings(client_slug):
     q = urllib.parse.urlencode(
         {
             "select": "id,lead_email,status,google_event_id,start_utc",
-            "client_id": f"eq.{client_slug}",
+            "client_id": f"eq.{client_id}",
         }
     )
     return _get(
@@ -244,7 +268,7 @@ def main():
         cfg = json.load(f)
 
     ledger_rows, migrated = read_ledger(cfg["ledger"])
-    bookings = read_bookings(cfg["client_id"])
+    bookings = read_bookings(resolve_client_id(cfg["client"]))
 
     calendar_ids = None
     if not args.no_calendar:
