@@ -9,6 +9,7 @@
 
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { computeSlots, type Interval } from "./availability.ts";
+import { decryptSecret, isEncrypted } from "./crypto.ts";
 import { hashToken, isWellFormedToken } from "./tokens.ts";
 import type { BookingRefusal } from "./booking-checks.ts";
 import { ConnectionNeedsReconsent, getFreeBusy } from "./google-calendar.ts";
@@ -136,7 +137,13 @@ export async function loadBookingContext(
       },
       connection: {
         id: conn.id,
-        refreshToken: conn.refresh_token_enc,
+        // Decrypted once, here, so nothing downstream has to remember to. A row written
+        // before lib/crypto.ts existed is plaintext; it is used as-is and shouted about
+        // rather than failing a live booking, and reconnecting the account fixes it.
+        refreshToken: isEncrypted(conn.refresh_token_enc)
+          ? decryptSecret(conn.refresh_token_enc)
+          : (console.warn(`[context] connection ${conn.id} holds an unencrypted refresh token`),
+            conn.refresh_token_enc),
         email: conn.email,
         status: conn.status,
       },
