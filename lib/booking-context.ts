@@ -49,6 +49,8 @@ export type BookingContext = {
     active: boolean;
   };
   connection: { id: string; refreshToken: string; email: string; status: string };
+  /** The client the prospect was actually emailed by — the dominant name on the page. */
+  client: { id: string; name: string };
 };
 
 export type ContextResult =
@@ -92,9 +94,19 @@ export async function loadBookingContext(
 
   if (!conn || conn.status !== "active") return { ok: false, reason: "event_inactive" };
 
+  const { data: client } = await db
+    .from("clients")
+    .select("id, name, active")
+    .eq("id", t.client_id)
+    .maybeSingle();
+
+  // A paused client must not keep taking bookings after their campaigns stop.
+  if (!client || !client.active) return { ok: false, reason: "event_inactive" };
+
   return {
     ok: true,
     context: {
+      client: { id: client.id, name: client.name },
       token: {
         id: t.id,
         eventTypeId: t.event_type_id,

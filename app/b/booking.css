@@ -1,0 +1,300 @@
+/**
+ * Booking flow styles. Mobile first — every rule here is written for 375px and only widened
+ * at the one breakpoint. A cold email is opened on a phone, and the incumbent's own support
+ * team names embed height as their top cause of invitees failing to book.
+ */
+
+.shell {
+  width: 100%;
+  max-width: var(--shell);
+  margin: 0 auto;
+  padding: var(--s-6) var(--pad) var(--s-8);
+}
+
+/* ── Identity ───────────────────────────────────────────────────────────────
+   The client's name leads. The prospect was emailed by them and has never heard
+   of AG Outbound, which sits at the foot of the page as quiet chrome. */
+
+.identity {
+  margin-bottom: var(--s-6);
+}
+
+.identity__client {
+  font-family: var(--display);
+  font-size: var(--t-hero);
+  font-weight: 600;
+  letter-spacing: -0.03em;
+  line-height: var(--lh-tight);
+}
+
+.identity__event {
+  margin-top: var(--s-2);
+  color: var(--mute);
+  font-size: var(--t-body);
+}
+
+.identity__rule {
+  margin-top: var(--s-5);
+  height: 1px;
+  background: var(--line);
+  border: 0;
+}
+
+/* ── Day strip ──────────────────────────────────────────────────────────────
+   A horizontal rail, not a shrunken month grid. Scrolls inside itself so the page
+   never scrolls sideways. */
+
+.days {
+  display: flex;
+  gap: var(--s-2);
+  overflow-x: auto;
+  scroll-snap-type: x mandatory;
+  padding-bottom: var(--s-2);
+  margin: 0 calc(var(--pad) * -1);
+  padding-inline: var(--pad);
+  scrollbar-width: none;
+}
+
+.days::-webkit-scrollbar {
+  display: none;
+}
+
+.day {
+  flex: 0 0 auto;
+  scroll-snap-align: start;
+  min-width: 64px;
+  min-height: var(--tap);
+  padding: var(--s-2) var(--s-3);
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--r-md);
+  cursor: pointer;
+  text-align: center;
+  transition: background var(--fast) var(--ease), border-color var(--fast) var(--ease);
+}
+
+.day:hover:not(:disabled) {
+  background: var(--surface-2);
+}
+
+.day[aria-pressed="true"] {
+  background: var(--blue);
+  border-color: var(--blue-hi);
+}
+
+.day:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+
+.day__dow {
+  display: block;
+  font-size: var(--t-micro);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--mute-2);
+}
+
+.day[aria-pressed="true"] .day__dow {
+  color: rgba(255, 255, 255, 0.82);
+}
+
+.day__num {
+  display: block;
+  font-family: var(--display);
+  font-size: var(--t-title);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+/* ── Times ─────────────────────────────────────────────────────────────────── */
+
+.times {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: var(--s-2);
+  margin-top: var(--s-5);
+}
+
+@media (min-width: 480px) {
+  .times {
+    grid-template-columns: repeat(3, 1fr);
+  }
+}
+
+.time {
+  min-height: var(--tap);
+  padding: var(--s-3);
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--r-md);
+  cursor: pointer;
+  font-variant-numeric: tabular-nums;
+  font-size: var(--t-body);
+  transition: background var(--fast) var(--ease), border-color var(--fast) var(--ease);
+}
+
+.time:hover {
+  background: var(--surface-2);
+  border-color: var(--blue-hi);
+}
+
+.tz {
+  margin-top: var(--s-4);
+  color: var(--mute-2);
+  font-size: var(--t-small);
+}
+
+/* Padded to a real hit area, with the padding pulled back out of the flow so the sentence
+   it sits in keeps its line height. Measured at 22px before this, which fails even the
+   24px WCAG minimum — an inline text control is still a control. */
+.tz button {
+  background: none;
+  border: 0;
+  padding: var(--s-3) var(--s-2);
+  margin: calc(var(--s-3) * -1) calc(var(--s-2) * -1);
+  color: var(--blue-lite);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  cursor: pointer;
+  font-size: inherit;
+}
+
+/* ── Confirm step ──────────────────────────────────────────────────────────── */
+
+.chosen {
+  padding: var(--s-4);
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--r-lg);
+}
+
+.chosen__when {
+  font-family: var(--display);
+  font-size: var(--t-title);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.chosen__who {
+  margin-top: var(--s-2);
+  color: var(--mute);
+  font-size: var(--t-small);
+}
+
+.field {
+  margin-top: var(--s-5);
+}
+
+.field__label {
+  display: block;
+  margin-bottom: var(--s-2);
+  font-size: var(--t-small);
+  color: var(--mute);
+}
+
+/* Three rows. The oversized textarea is a real conversion problem: on a phone it pushes the
+   confirm button below the fold, and the prospect cannot see the thing they came to press. */
+.field textarea {
+  width: 100%;
+  min-height: calc(var(--tap) * 1.6);
+  padding: var(--s-3);
+  background: var(--ink-3);
+  color: var(--white);
+  border: 1px solid var(--line);
+  border-radius: var(--r-md);
+  font: inherit;
+  resize: vertical;
+}
+
+.field textarea::placeholder {
+  color: var(--mute-2);
+}
+
+/* ── Buttons ───────────────────────────────────────────────────────────────── */
+
+.btn {
+  display: block;
+  width: 100%;
+  min-height: var(--tap);
+  margin-top: var(--s-5);
+  padding: var(--s-3) var(--s-5);
+  background: var(--blue);
+  color: var(--white);
+  border: 1px solid var(--blue-hi);
+  border-radius: var(--r-md);
+  font-weight: 600;
+  cursor: pointer;
+  transition: background var(--fast) var(--ease);
+}
+
+.btn:hover:not(:disabled) {
+  background: var(--blue-hi);
+}
+
+.btn:disabled {
+  opacity: 0.5;
+  cursor: progress;
+}
+
+.btn--quiet {
+  margin-top: var(--s-3);
+  background: none;
+  color: var(--mute);
+  border-color: var(--line);
+  font-weight: 400;
+}
+
+.btn--quiet:hover:not(:disabled) {
+  background: var(--surface);
+  color: var(--white);
+}
+
+/* ── Terminal and empty states ─────────────────────────────────────────────── */
+
+.state {
+  margin-top: var(--s-6);
+  padding: var(--s-6) var(--s-5);
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--r-lg);
+  text-align: center;
+}
+
+.state__title {
+  font-family: var(--display);
+  font-size: var(--t-title);
+  font-weight: 600;
+}
+
+.state__body {
+  margin-top: var(--s-3);
+  color: var(--mute);
+  font-size: var(--t-small);
+}
+
+.state--good .state__title {
+  color: var(--good);
+}
+
+/* Inline, not a page replacement: losing a slot should not lose the prospect. */
+.notice {
+  margin-top: var(--s-4);
+  padding: var(--s-3) var(--s-4);
+  background: rgba(255, 176, 32, 0.08);
+  border: 1px solid rgba(255, 176, 32, 0.35);
+  border-radius: var(--r-md);
+  color: var(--warn);
+  font-size: var(--t-small);
+}
+
+/* ── Footer chrome ─────────────────────────────────────────────────────────── */
+
+.chrome {
+  margin-top: var(--s-8);
+  padding-top: var(--s-4);
+  border-top: 1px solid var(--line-2);
+  color: var(--mute-2);
+  font-size: var(--t-micro);
+  letter-spacing: 0.04em;
+}

@@ -67,6 +67,10 @@ export async function GET(request: Request) {
   }
 
   return Response.json({
+    // The client's name leads the page. The prospect was emailed by them, has never heard
+    // of AG Outbound, and a booking page fronted by an unfamiliar company at the moment of
+    // committing time reads as a scam.
+    client: { name: context.client.name },
     event: {
       name: context.eventType.name,
       description: context.eventType.description,
