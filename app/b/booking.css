@@ -298,3 +298,16 @@
   font-size: var(--t-micro);
   letter-spacing: 0.04em;
 }
+
+/* Public page only: the visitor types their own details, so these inputs have to match the
+   textarea they sit beside. */
+.pubinput {
+  width: 100%;
+  min-height: var(--tap);
+  padding: var(--s-3);
+  background: var(--ink-3);
+  color: var(--white);
+  border: 1px solid var(--line);
+  border-radius: var(--r-md);
+  font: inherit;
+}

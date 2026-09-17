@@ -153,6 +153,79 @@ export async function loadBookingContext(
   };
 }
 
+/**
+ * Resolve a public booking page by slugs. No token involved.
+ *
+ * is_public is checked here rather than at the route, so every caller gets the same answer.
+ * An event type built for per-lead outreach must never become bookable by a stranger just
+ * because someone guessed its slug.
+ */
+export async function loadPublicContext(
+  db: SupabaseClient,
+  clientSlug: string,
+  eventSlug: string,
+): Promise<
+  | { ok: true; context: Omit<BookingContext, "token"> }
+  | { ok: false; reason: "not_found" | "not_public" }
+> {
+  const { data: client } = await db
+    .from("clients")
+    .select("id, name, active")
+    .eq("slug", clientSlug)
+    .maybeSingle();
+  if (!client || !client.active) return { ok: false, reason: "not_found" };
+
+  const { data: et } = await db
+    .from("event_types")
+    .select(
+      "id, client_id, connection_id, name, description, duration_min, buffer_before, buffer_after, min_notice_min, date_range_days, slot_interval_min, active, is_public",
+    )
+    .eq("client_id", client.id)
+    .eq("slug", eventSlug)
+    .maybeSingle();
+
+  if (!et || !et.active) return { ok: false, reason: "not_found" };
+  // Opt in, never opt out. Same answer to "no such page" and "not public": a stranger
+  // probing slugs learns nothing either way.
+  if (!et.is_public) return { ok: false, reason: "not_public" };
+
+  const { data: conn } = await db
+    .from("connections")
+    .select("id, refresh_token_enc, email, status")
+    .eq("id", et.connection_id)
+    .maybeSingle();
+  if (!conn || conn.status !== "active") return { ok: false, reason: "not_found" };
+
+  return {
+    ok: true,
+    context: {
+      client: { id: client.id, name: client.name },
+      eventType: {
+        id: et.id,
+        clientId: et.client_id,
+        connectionId: et.connection_id,
+        name: et.name,
+        description: et.description,
+        durationMin: et.duration_min,
+        bufferBeforeMin: et.buffer_before,
+        bufferAfterMin: et.buffer_after,
+        minNoticeMin: et.min_notice_min,
+        dateRangeDays: et.date_range_days,
+        slotIntervalMin: et.slot_interval_min ?? DEFAULT_SLOT_INTERVAL_MIN,
+        active: et.active,
+      },
+      connection: {
+        id: conn.id,
+        refreshToken: isEncrypted(conn.refresh_token_enc)
+          ? decryptSecret(conn.refresh_token_enc)
+          : conn.refresh_token_enc,
+        email: conn.email,
+        status: conn.status,
+      },
+    },
+  };
+}
+
 export type ManagedBooking = {
   id: string;
   clientId: string;
