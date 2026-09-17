@@ -1,6 +1,6 @@
 import { notFound } from "next/navigation";
 import "../../b/booking.css";
-import { BookingFlow, DeadLink, Identity } from "../../b/[token]/ui";
+import { Booked, BookingFlow, DeadLink, Identity } from "../../b/[token]/ui";
 
 /**
  * Visual harness for the booking states. Development only — it renders fixture data with no
@@ -59,14 +59,19 @@ export default function PreviewPage() {
         <BookingFlow token={"x".repeat(43)} data={{ client, event, lead, slots: [] }} />
       </Section>
 
-      <Section label="3 — Dead link (expired, spent or unknown)">
+      <Section label="3 — Booked (the terminal success state)">
+        <Identity client={client} event={event} />
+        <Booked start="2026-09-21T09:00:00.000Z" zone="Europe/London" email={lead.email} />
+      </Section>
+
+      <Section label="4 — Dead link (expired, spent or unknown)">
         <DeadLink
           title="This link is no longer valid"
           body="It may have expired or already been used. Reply to the email and we'll send a fresh one."
         />
       </Section>
 
-      <Section label="4 — Calendar unavailable">
+      <Section label="5 — Calendar unavailable">
         <Identity client={client} event={event} />
         <DeadLink
           title="Calendar temporarily unavailable"

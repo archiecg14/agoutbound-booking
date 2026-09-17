@@ -130,3 +130,80 @@ table.ops-table {
   border-radius: var(--r-md);
   font: inherit;
 }
+
+/* ── Forms ──────────────────────────────────────────────────────────────────
+   Two columns on a laptop, one on anything narrower. The operator is usually at a
+   desk, but "usually" is not "always". */
+
+.opsform {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: var(--s-3);
+  padding: var(--s-4);
+}
+
+@media (min-width: 640px) {
+  .opsform {
+    grid-template-columns: repeat(2, 1fr);
+  }
+  .opsform > .btn,
+  .opsform > .opsform__days,
+  .opsform > .notice,
+  .opsform > .tz,
+  .opsform > .ops__sub {
+    grid-column: 1 / -1;
+  }
+}
+
+.opsform label {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-1);
+  font-size: var(--t-micro);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--mute-2);
+}
+
+.opsform input,
+.opsform select {
+  min-height: var(--tap);
+  padding: var(--s-2) var(--s-3);
+  background: var(--ink-3);
+  color: var(--white);
+  border: 1px solid var(--line);
+  border-radius: var(--r-md);
+  font: inherit;
+  text-transform: none;
+  letter-spacing: normal;
+}
+
+.opsform input:disabled {
+  opacity: 0.4;
+}
+
+.opsform__days {
+  display: grid;
+  gap: var(--s-2);
+}
+
+.opsform__day {
+  display: grid;
+  grid-template-columns: 6.5rem 1fr 1fr;
+  gap: var(--s-2);
+  align-items: center;
+}
+
+.opsform__dayname {
+  flex-direction: row;
+  align-items: center;
+  gap: var(--s-2);
+  color: var(--white);
+}
+
+.opsform__dayname input[type="checkbox"] {
+  min-height: auto;
+  width: 18px;
+  height: 18px;
+  accent-color: var(--blue);
+}

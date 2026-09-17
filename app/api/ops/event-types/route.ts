@@ -50,6 +50,14 @@ export async function POST(request: Request) {
     buffer_after: Number.isInteger(Number(b.bufferAfter)) ? Number(b.bufferAfter) : 0,
     min_notice_min: Number.isInteger(Number(b.minNoticeMin)) ? Number(b.minNoticeMin) : 60,
     date_range_days: Number.isInteger(Number(b.dateRangeDays)) ? Number(b.dateRangeDays) : 30,
+    // Spacing between offered start times. A long call offering a start every quarter hour
+    // gives the prospect a wall of near-identical options, which is harder to choose from.
+    slot_interval_min:
+      Number.isInteger(Number(b.slotIntervalMin)) &&
+      Number(b.slotIntervalMin) >= 5 &&
+      Number(b.slotIntervalMin) <= 120
+        ? Number(b.slotIntervalMin)
+        : 15,
     active: b.active !== false,
   };
 

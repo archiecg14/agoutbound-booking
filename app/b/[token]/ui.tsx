@@ -102,18 +102,7 @@ export function BookingFlow({ token, data }: { token: string; data: BookingData 
   }
 
   if (phase === "done" && chosen) {
-    return (
-      <div className="state state--good">
-        <div className="state__title">You&rsquo;re booked in</div>
-        <p className="state__body">
-          {fmt(chosen.start, zone, { weekday: "long", day: "numeric", month: "long" })} at{" "}
-          {fmt(chosen.start, zone, { hour: "2-digit", minute: "2-digit", hour12: false })}
-          {" "}({zone.replace(/_/g, " ")}).
-          <br />
-          A calendar invitation is on its way to {data.lead.email}.
-        </p>
-      </div>
-    );
+    return <Booked start={chosen.start} zone={zone} email={data.lead.email} />;
   }
 
   if (phase === "confirm" && chosen) {
@@ -213,6 +202,24 @@ export function BookingFlow({ token, data }: { token: string; data: BookingData 
         <button onClick={() => setZone(zone === "UTC" ? detectZone() : "UTC")}>
           {zone === "UTC" ? "Use my timezone" : "Show in UTC"}
         </button>
+      </p>
+    </div>
+  );
+}
+
+/** The terminal success state. Exported so it can be rendered on its own — otherwise the
+ *  only way to see it is to complete a real booking, which is exactly the screen you least
+ *  want to be looking at for the first time in production. */
+export function Booked({ start, zone, email }: { start: string; zone: string; email: string }) {
+  return (
+    <div className="state state--good">
+      <div className="state__title">You&rsquo;re booked in</div>
+      <p className="state__body">
+        {fmt(start, zone, { weekday: "long", day: "numeric", month: "long" })} at{" "}
+        {fmt(start, zone, { hour: "2-digit", minute: "2-digit", hour12: false })}{" "}
+        ({zone.replace(/_/g, " ")}).
+        <br />
+        A calendar invitation is on its way to {email}.
       </p>
     </div>
   );

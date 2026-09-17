@@ -4,6 +4,7 @@ import "./ops.css";
 import "../b/booking.css";
 import { serviceClient } from "@/lib/supabase";
 import { OPS_COOKIE, isOperator } from "@/lib/operator-auth";
+import { AvailabilityForm, EventTypeForm } from "./forms";
 
 /**
  * The operator dashboard. Read-only by design for now: the things worth seeing daily are
@@ -168,6 +169,31 @@ export default async function OpsPage() {
           </tr>
         ))}
       />
+
+      <section className="panel">
+        <div className="panel__head">
+          <span className="panel__title">New or updated event type</span>
+        </div>
+        <EventTypeForm
+          clients={(clients.data ?? []).map((c) => ({ id: c.id, label: c.name as string }))}
+          connections={(connections.data ?? []).map((c) => ({
+            id: c.id,
+            label: `${clientName.get(c.client_id) ?? ""} — ${c.email}`,
+          }))}
+        />
+      </section>
+
+      <section className="panel">
+        <div className="panel__head">
+          <span className="panel__title">Weekly availability</span>
+        </div>
+        <AvailabilityForm
+          connections={(connections.data ?? []).map((c) => ({
+            id: c.id,
+            label: `${clientName.get(c.client_id) ?? ""} — ${c.email}`,
+          }))}
+        />
+      </section>
 
       <footer className="chrome">
         Times in Europe/London. Booking data is client data — treat this page accordingly.

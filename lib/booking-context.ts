@@ -14,8 +14,8 @@ import { hashToken, isWellFormedToken } from "./tokens.ts";
 import type { BookingRefusal } from "./booking-checks.ts";
 import { ConnectionNeedsReconsent, getFreeBusy } from "./google-calendar.ts";
 
-/** Slot granularity. Not per-event-type yet; see SPEC.md §11. */
-export const SLOT_INTERVAL_MIN = 15;
+/** Fallback granularity when an event type does not specify one. */
+export const DEFAULT_SLOT_INTERVAL_MIN = 15;
 
 /** Bounds the work a public, unauthenticated request can cause. */
 export const MAX_RANGE_DAYS = 62;
@@ -47,6 +47,7 @@ export type BookingContext = {
     bufferAfterMin: number;
     minNoticeMin: number;
     dateRangeDays: number;
+    slotIntervalMin: number;
     active: boolean;
   };
   connection: { id: string; refreshToken: string; email: string; status: string };
@@ -78,7 +79,7 @@ export async function loadBookingContext(
   const { data: et } = await db
     .from("event_types")
     .select(
-      "id, client_id, connection_id, name, description, duration_min, buffer_before, buffer_after, min_notice_min, date_range_days, active",
+      "id, client_id, connection_id, name, description, duration_min, buffer_before, buffer_after, min_notice_min, date_range_days, slot_interval_min, active",
     )
     .eq("id", t.event_type_id)
     .maybeSingle();
@@ -133,6 +134,7 @@ export async function loadBookingContext(
         bufferAfterMin: et.buffer_after,
         minNoticeMin: et.min_notice_min,
         dateRangeDays: et.date_range_days,
+        slotIntervalMin: et.slot_interval_min ?? DEFAULT_SLOT_INTERVAL_MIN,
         active: et.active,
       },
       connection: {
@@ -169,6 +171,7 @@ export type ManagedBooking = {
     bufferAfterMin: number;
     minNoticeMin: number;
     dateRangeDays: number;
+    slotIntervalMin: number;
   };
   connection: { id: string; refreshToken: string };
 };
@@ -190,7 +193,7 @@ export async function loadBookingById(
   const [{ data: conn }, { data: client }, { data: et }] = await Promise.all([
     db.from("connections").select("id, refresh_token_enc, status").eq("id", b.connection_id).maybeSingle(),
     db.from("clients").select("name").eq("id", b.client_id).maybeSingle(),
-    db.from("event_types").select("name, duration_min, buffer_before, buffer_after, min_notice_min, date_range_days").eq("id", b.event_type_id).maybeSingle(),
+    db.from("event_types").select("name, duration_min, buffer_before, buffer_after, min_notice_min, date_range_days, slot_interval_min").eq("id", b.event_type_id).maybeSingle(),
   ]);
   if (!conn) return null;
 
@@ -212,6 +215,7 @@ export async function loadBookingById(
       bufferAfterMin: et?.buffer_after ?? 0,
       minNoticeMin: et?.min_notice_min ?? 0,
       dateRangeDays: et?.date_range_days ?? 30,
+      slotIntervalMin: et?.slot_interval_min ?? DEFAULT_SLOT_INTERVAL_MIN,
     },
     connection: {
       id: conn.id,
@@ -250,6 +254,7 @@ export type AvailabilityInput = {
     bufferAfterMin: number;
     minNoticeMin: number;
     dateRangeDays: number;
+    slotIntervalMin?: number;
   };
 };
 
@@ -337,7 +342,7 @@ export async function availabilityFor(
       bufferAfterMin: ctx.eventType.bufferAfterMin,
       minNoticeMin: ctx.eventType.minNoticeMin,
       dateRangeDays: ctx.eventType.dateRangeDays,
-      slotIntervalMin: SLOT_INTERVAL_MIN,
+      slotIntervalMin: ctx.eventType.slotIntervalMin ?? DEFAULT_SLOT_INTERVAL_MIN,
     },
     from: fromIso,
     to: toIso,
