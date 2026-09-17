@@ -10,7 +10,7 @@ import {
 } from "./manage.ts";
 import { makeInvite, signPayload } from "./oauth.ts";
 
-process.env.LINKS_API_KEY = "test-signing-secret";
+process.env.SIGNING_KEY = "test-signing-secret";
 
 const END = "2026-09-20T09:30:00.000Z";
 const START = "2026-09-20T09:00:00.000Z";

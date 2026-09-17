@@ -13,7 +13,7 @@ import {
 // Both modules read env lazily inside their functions, so setting it here is enough — no
 // import ordering games required.
 process.env.TOKEN_ENCRYPTION_KEY = randomBytes(32).toString("base64");
-process.env.LINKS_API_KEY = "test-signing-secret";
+process.env.SIGNING_KEY = "test-signing-secret";
 
 const TOKEN = "1//0gExampleRefreshTokenValue_abcdef";
 
@@ -91,6 +91,22 @@ test("an invite carries its purpose and an expiry", () => {
   assert.equal(inv?.k, "invite");
   assert.equal(inv?.clientId, "cl-1");
   assert.ok(inv!.exp > Date.now());
+});
+
+test("signing does NOT fall back to LINKS_API_KEY", () => {
+  // The separation is the whole point: LINKS_API_KEY is handed to the lead-build tooling,
+  // SIGNING_KEY never leaves the server. A fallback would silently re-merge them and let a
+  // holder of the minting key forge manage tokens and operator sessions.
+  const saved = { sign: process.env.SIGNING_KEY, links: process.env.LINKS_API_KEY };
+  try {
+    delete process.env.SIGNING_KEY;
+    process.env.LINKS_API_KEY = "the-minting-bearer-token";
+    assert.throws(() => signPayload({ k: "invite" }), /SIGNING_KEY is not set/);
+  } finally {
+    process.env.SIGNING_KEY = saved.sign;
+    if (saved.links === undefined) delete process.env.LINKS_API_KEY;
+    else process.env.LINKS_API_KEY = saved.links;
+  }
 });
 
 // ── consent url ─────────────────────────────────────────────────────────────

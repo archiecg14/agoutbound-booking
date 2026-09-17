@@ -37,9 +37,25 @@ export const SCOPES = [
   "https://www.googleapis.com/auth/calendar.events",
 ] as const;
 
+/**
+ * The HMAC key for every signed payload this app produces: connect invites, OAuth state,
+ * manage tokens and operator sessions.
+ *
+ * Deliberately NOT the same value as LINKS_API_KEY. That one is a bearer token handed to
+ * the lead-build tooling so it can mint links; whoever holds it would otherwise also be
+ * able to forge a manage token for any booking and sign themselves an operator session.
+ * A bearer credential you distribute and a signing key you never distribute are different
+ * things and must not be one variable.
+ *
+ * There is no fallback to LINKS_API_KEY on purpose. A fallback lets someone believe they
+ * have separated the two when they have not.
+ *
+ * Rotating this invalidates every live manage link already sitting in a calendar invitation
+ * and signs out every operator session.
+ */
 function secret(): string {
-  const s = process.env.LINKS_API_KEY;
-  if (!s) throw new Error("LINKS_API_KEY is not set");
+  const s = process.env.SIGNING_KEY;
+  if (!s) throw new Error("SIGNING_KEY is not set");
   return s;
 }
 
