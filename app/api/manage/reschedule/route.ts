@@ -18,6 +18,7 @@ import {
 } from "@/lib/booking-context";
 import { canManage, manageRefusalMessage, readManageToken } from "@/lib/manage";
 import { patchEventTime } from "@/lib/google-calendar";
+import { scheduleFor } from "@/lib/reminders";
 
 const DAY_MS = 86_400_000;
 
@@ -86,6 +87,20 @@ export async function POST(request: Request) {
     console.error("[manage] reschedule update failed", error);
     const { status, message } = manageRefusalMessage("slot_not_offered");
     return Response.json({ error: message, code: "slot_not_offered" }, { status });
+  }
+
+  // Pending reminders now point at the old time. Sent ones are left alone: they were true
+  // when they went out, and deleting them would let the same reminder fire twice.
+  await db.from("reminders").delete().eq("booking_id", b.id).eq("status", "pending");
+  const fresh = scheduleFor(match.start, match.end, now);
+  if (fresh.length) {
+    const { error: remErr } = await db
+      .from("reminders")
+      .upsert(
+        fresh.map((r) => ({ booking_id: b.id, kind: r.kind, due_at: r.dueAt, status: "pending", attempts: 0 })),
+        { onConflict: "booking_id,kind" },
+      );
+    if (remErr) console.error("[manage] rescheduling reminders failed", b.id, remErr);
   }
 
   if (b.googleEventId) {

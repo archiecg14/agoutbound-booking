@@ -34,6 +34,7 @@ import {
 } from "@/lib/booking-context";
 import { createEvent } from "@/lib/google-calendar";
 import { manageUrl, mintManageToken } from "@/lib/manage";
+import { scheduleFor } from "@/lib/reminders";
 
 const DAY_MS = 86_400_000;
 
@@ -149,6 +150,17 @@ export async function POST(request: Request) {
     await db.from("link_tokens").update({ used_at: null }).eq("id", token.id);
     console.error("[bookings] insert failed", insertErr);
     return refuse("slot_not_offered");
+  }
+
+  // Reminders. Scheduled before the calendar write so a Google outage does not also cost
+  // the attendee their reminders. Failure here is logged, never fatal: a booking that
+  // exists without reminders is far better than a lost booking.
+  const reminders = scheduleFor(booking.start_utc, booking.end_utc, now);
+  if (reminders.length) {
+    const { error: remErr } = await db.from("reminders").insert(
+      reminders.map((r) => ({ booking_id: booking.id, kind: r.kind, due_at: r.dueAt })),
+    );
+    if (remErr) console.error("[bookings] scheduling reminders failed", booking.id, remErr);
   }
 
   // Calendar write. Allowed to fail; reconcile.py picks up google_event_id IS NULL.
