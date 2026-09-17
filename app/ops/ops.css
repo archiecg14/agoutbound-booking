@@ -1,0 +1,132 @@
+/**
+ * Operator surface styles. Denser than the booking page on purpose: this is a tool for one
+ * person who already knows what they are looking at, not a page that has to earn trust from
+ * a stranger in three seconds.
+ */
+
+.ops {
+  width: 100%;
+  max-width: 1100px;
+  margin: 0 auto;
+  padding: var(--s-6) var(--pad) var(--s-8);
+}
+
+.ops h1 {
+  font-size: var(--t-title);
+  font-weight: 600;
+}
+
+.ops__sub {
+  margin-top: var(--s-2);
+  color: var(--mute-2);
+  font-size: var(--t-small);
+}
+
+.panel {
+  margin-top: var(--s-6);
+  border: 1px solid var(--line);
+  border-radius: var(--r-lg);
+  background: var(--surface);
+  overflow: hidden;
+}
+
+.panel__head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--s-3);
+  padding: var(--s-4);
+  border-bottom: 1px solid var(--line-2);
+}
+
+.panel__title {
+  font-family: var(--display);
+  font-weight: 600;
+}
+
+.panel__count {
+  color: var(--mute-2);
+  font-size: var(--t-small);
+  font-variant-numeric: tabular-nums;
+}
+
+/* Tables scroll inside the panel rather than widening the page. */
+.tablewrap {
+  overflow-x: auto;
+}
+
+table.ops-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: var(--t-small);
+  white-space: nowrap;
+}
+
+.ops-table th {
+  text-align: left;
+  padding: var(--s-3) var(--s-4);
+  color: var(--mute-2);
+  font-weight: 500;
+  font-size: var(--t-micro);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  border-bottom: 1px solid var(--line-2);
+}
+
+.ops-table td {
+  padding: var(--s-3) var(--s-4);
+  border-bottom: 1px solid var(--line-2);
+  font-variant-numeric: tabular-nums;
+}
+
+.ops-table tr:last-child td {
+  border-bottom: 0;
+}
+
+/* Status is the whole point of the connections panel — a client whose calendar has gone
+   dark must be obvious at a glance, not buried in a column of grey text. */
+.pill {
+  display: inline-block;
+  padding: 2px var(--s-2);
+  border-radius: 999px;
+  font-size: var(--t-micro);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  border: 1px solid currentColor;
+}
+
+.pill--ok {
+  color: var(--good);
+}
+
+.pill--warn {
+  color: var(--warn);
+}
+
+.pill--bad {
+  color: var(--bad);
+}
+
+.empty {
+  padding: var(--s-5) var(--s-4);
+  color: var(--mute-2);
+  font-size: var(--t-small);
+}
+
+.ops-login {
+  max-width: 360px;
+  margin: 12vh auto;
+  padding: var(--pad);
+}
+
+.ops-login input {
+  width: 100%;
+  min-height: var(--tap);
+  margin-top: var(--s-4);
+  padding: var(--s-3);
+  background: var(--ink-3);
+  color: var(--white);
+  border: 1px solid var(--line);
+  border-radius: var(--r-md);
+  font: inherit;
+}
