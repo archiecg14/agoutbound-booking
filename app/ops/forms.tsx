@@ -37,6 +37,7 @@ export function EventTypeForm({ clients, connections }: { clients: Option[]; con
     bufferAfter: 15,
     minNoticeMin: 120,
     dateRangeDays: 21,
+    isPublic: false,
   });
   const [busy, setBusy] = useState(false);
   const [result, setResult] = useState<{ ok: boolean; text: string } | null>(null);
@@ -105,6 +106,18 @@ export function EventTypeForm({ clients, connections }: { clients: Option[]; con
           />
         </label>
       ))}
+      <label className="opsform__dayname" style={{ gridColumn: "1 / -1" }}>
+        <input
+          type="checkbox"
+          checked={f.isPublic}
+          onChange={(e) => setF({ ...f, isPublic: e.target.checked })}
+        />
+        Public — anyone with the URL can book this, no link required
+      </label>
+      <p className="ops__sub" style={{ gridColumn: "1 / -1" }}>
+        Leave unticked for outreach event types. A public page is reachable at
+        /book/&lt;client&gt;/&lt;slug&gt; and is indexable.
+      </p>
       <button className="btn" disabled={busy}>{busy ? "Saving…" : "Save event type"}</button>
       <Result state={result} />
     </form>

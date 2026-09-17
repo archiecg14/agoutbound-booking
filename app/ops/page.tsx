@@ -85,7 +85,7 @@ export default async function OpsPage() {
   const [clients, connections, eventTypes, bookings] = await Promise.all([
     db.from("clients").select("id, slug, name, active").order("name"),
     db.from("connections").select("id, client_id, email, status, last_ok_at, last_error"),
-    db.from("event_types").select("id, client_id, slug, name, duration_min, active").order("name"),
+    db.from("event_types").select("id, client_id, slug, name, duration_min, active, is_public").order("name"),
     db
       .from("bookings")
       .select("id, client_id, attendee_email, start_utc, status, google_event_id")
@@ -143,7 +143,7 @@ export default async function OpsPage() {
       <Panel
         title="Event types"
         count={eventTypes.data?.length ?? 0}
-        head={["Client", "Name", "Slug", "Minutes", "Active"]}
+        head={["Client", "Name", "Slug", "Minutes", "Active", "Public"]}
         empty="No event types yet. Nothing can be booked until one exists."
         rows={(eventTypes.data ?? []).map((e) => (
           <tr key={e.id}>
@@ -152,6 +152,8 @@ export default async function OpsPage() {
             <td style={{ color: "var(--mute-2)" }}>{e.slug}</td>
             <td>{e.duration_min}</td>
             <td>{e.active ? "yes" : <span className="pill pill--bad">no</span>}</td>
+            {/* Open to the internet should never be something you discover later. */}
+            <td>{e.is_public ? <span className="pill pill--warn">public</span> : "private"}</td>
           </tr>
         ))}
       />

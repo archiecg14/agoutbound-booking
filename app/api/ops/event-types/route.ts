@@ -59,6 +59,9 @@ export async function POST(request: Request) {
         ? Number(b.slotIntervalMin)
         : 15,
     active: b.active !== false,
+    // Explicit opt-in. Anything other than a literal true stays private, so a typo or a
+    // stray string can never publish a client's outreach calendar to the open internet.
+    is_public: b.isPublic === true,
   };
 
   // Upsert on (client_id, slug), matching the unique constraint, so editing an event type
