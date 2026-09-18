@@ -33,6 +33,11 @@ export const OAUTH_NONCE_COOKIE = "agob_oauth_nonce";
  */
 export const SCOPES = [
   "openid",
+  // Non-sensitive. Added after a live run proved the original approach wrong: reading the
+  // primary calendar's id to learn the account's address returns 403, because calendar
+  // METADATA needs calendar.readonly or full calendar, and we request neither on purpose.
+  // The email claim on the id_token costs no extra API call and no sensitive scope.
+  "email",
   "https://www.googleapis.com/auth/calendar.freebusy",
   "https://www.googleapis.com/auth/calendar.events",
 ] as const;
@@ -135,16 +140,23 @@ export function consentUrl(args: {
  * token endpoint, not via the browser, so there is no untrusted party in the path. An
  * id_token arriving any other way MUST be verified properly before it is trusted.
  */
-export function subjectFromIdToken(idToken: string | undefined): string | null {
-  if (!idToken) return null;
+export function claimsFromIdToken(
+  idToken: string | undefined,
+): { sub: string | null; email: string | null } {
+  if (!idToken) return { sub: null, email: null };
   const parts = idToken.split(".");
-  if (parts.length !== 3) return null;
+  if (parts.length !== 3) return { sub: null, email: null };
   try {
-    const claims = JSON.parse(Buffer.from(parts[1], "base64url").toString("utf8")) as {
+    const c = JSON.parse(Buffer.from(parts[1], "base64url").toString("utf8")) as {
       sub?: string;
+      email?: string;
     };
-    return claims.sub ?? null;
+    return { sub: c.sub ?? null, email: c.email ?? null };
   } catch {
-    return null;
+    return { sub: null, email: null };
   }
+}
+
+export function subjectFromIdToken(idToken: string | undefined): string | null {
+  return claimsFromIdToken(idToken).sub;
 }

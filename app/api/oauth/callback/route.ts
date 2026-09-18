@@ -9,7 +9,7 @@
 import { cookies } from "next/headers";
 import { serviceClient } from "@/lib/supabase";
 import { encryptSecret } from "@/lib/crypto";
-import { OAUTH_NONCE_COOKIE, SCOPES, TOKEN_URL, subjectFromIdToken, verifyPayload } from "@/lib/oauth";
+import { OAUTH_NONCE_COOKIE, SCOPES, TOKEN_URL, claimsFromIdToken, verifyPayload } from "@/lib/oauth";
 
 function done(status: "ok" | "denied" | "failed", base: string) {
   return Response.redirect(new URL(`/connected?status=${status}`, base), 302);
@@ -79,26 +79,25 @@ export async function GET(request: Request) {
 
   // Google may grant fewer scopes than were asked for. Storing a connection that cannot
   // read freebusy would surface later as mysterious 403s during a booking.
+  // Only the CALENDAR scopes are checked. Google normalises the identity scopes on the way
+  // back — "openid" and "email" are returned as openid and .../auth/userinfo.email — so
+  // comparing them literally would report a scope missing that was in fact granted, and
+  // fail every connection.
   const granted = (tokens.scope ?? "").split(" ");
-  const missing = SCOPES.filter((s) => s !== "openid" && !granted.includes(s));
+  const missing = SCOPES.filter(
+    (s) => s.startsWith("https://www.googleapis.com/auth/calendar") && !granted.includes(s),
+  );
   if (missing.length) {
     console.error("[oauth] missing required scopes", missing);
     return done("failed", origin);
   }
 
-  // The primary calendar's id IS the account's email address, so this avoids asking for a
-  // userinfo scope purely to learn who connected.
-  let email: string | null = null;
-  try {
-    const res = await fetch("https://www.googleapis.com/calendar/v3/calendars/primary", {
-      headers: { Authorization: `Bearer ${tokens.access_token}` },
-    });
-    if (res.ok) email = ((await res.json()) as { id?: string }).id ?? null;
-  } catch {
-    // Non-fatal: the connection still works without a display email.
-  }
-
-  const googleAccountId = subjectFromIdToken(tokens.id_token) ?? email;
+  // Both come from the id_token, which arrives in the direct TLS response from Google's
+  // token endpoint. An earlier version read the primary calendar's id to learn the address
+  // and got 403: calendar METADATA needs calendar.readonly or full calendar, and this app
+  // requests neither by design. It failed silently and stored the account id as the email.
+  const { sub, email } = claimsFromIdToken(tokens.id_token);
+  const googleAccountId = sub ?? email;
   if (!googleAccountId) {
     console.error("[oauth] could not determine the google account id");
     return done("failed", origin);

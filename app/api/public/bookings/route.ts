@@ -18,6 +18,7 @@ import {
 } from "@/lib/booking-context";
 import { createEvent } from "@/lib/google-calendar";
 import { manageUrl, mintManageToken } from "@/lib/manage";
+import { notifyHost } from "@/lib/booking-notification";
 import { scheduleFor } from "@/lib/reminders";
 import {
   MAX_PER_IP_PER_HOUR,
@@ -170,6 +171,35 @@ export async function POST(request: Request) {
       .eq("id", booking.id);
   } catch (err) {
     console.error("[public/bookings] calendar write failed, booking stands unsynced", booking.id, err);
+  }
+
+
+  // Tell the host. Never fatal: a booking without its notification is an annoyance, a
+  // booking lost to a bounced email is revenue.
+  try {
+    const { data: tzRow } = await db
+      .from("availability_rules")
+      .select("timezone")
+      .eq("connection_id", connection.id)
+      .limit(1)
+      .maybeSingle();
+
+    const result = await notifyHost(connection.email, {
+      clientName: client.name,
+      eventName: eventType.name,
+      attendeeName: req.name,
+      attendeeEmail: req.email,
+      startUtc: booking.start_utc,
+      endUtc: booking.end_utc,
+      hostTimezone: tzRow?.timezone ?? null,
+      note: req.note,
+      campaignId: null,
+      wave: null,
+      source: "public",
+    });
+    if (!result.sent) console.warn("[public/bookings] host not notified:", result.reason);
+  } catch (err) {
+    console.error("[public/bookings] host notification threw", err);
   }
 
   return Response.json(

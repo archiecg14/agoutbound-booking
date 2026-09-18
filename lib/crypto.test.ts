@@ -126,6 +126,10 @@ test("the consent url asks for offline access and forces a refresh token", () =>
   // We never need event contents, so we never ask for a scope that grants them.
   assert.ok(!scopes.some((s) => s.endsWith("/auth/calendar")), "must not request full calendar");
   assert.ok(!scopes.some((s) => s.includes("calendar.readonly")), "must not request readonly-all");
+  // Identity scopes: needed to learn who connected without an extra API call, and both are
+  // non-sensitive. A live run proved the alternative (reading calendar metadata) 403s.
+  assert.ok(scopes.includes("email"), "email claim is how the address is learned");
+  assert.ok(scopes.includes("openid"));
 });
 
 test("the account id is read from the id_token, and junk yields null", () => {
