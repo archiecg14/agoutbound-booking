@@ -36,7 +36,9 @@ export function EventTypeForm({ clients, connections }: { clients: Option[]; con
     bufferBefore: 0,
     bufferAfter: 15,
     minNoticeMin: 120,
-    dateRangeDays: 21,
+    // One week. Far enough ahead to be convenient, close enough that the calendar it was
+    // computed from is still roughly true when the call arrives.
+    dateRangeDays: 7,
     isPublic: false,
   });
   const [busy, setBusy] = useState(false);
