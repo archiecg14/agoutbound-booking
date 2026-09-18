@@ -39,7 +39,9 @@ access to every client's contact data. Treat it like a database password, becaus
    respects RLS and will see nothing.
 3. SQL editor → run every file in `supabase/migrations/` in numerical order:
    `0001_init.sql`, `0002_reminders.sql`, `0003_slot_interval.sql`,
-   `0004_public_booking.sql`. Each depends on the ones before it.
+   `0004_public_booking.sql`, `0005_confirm_email.sql`. Each depends on the ones
+   before it. If the editor refuses the first line of `0005` with "unsafe use of
+   new value of enum type", run that one line alone, then the rest of the file.
 4. Seed your clients, because nothing resolves without a row:
 
    ```sql
@@ -174,7 +176,7 @@ unique `(booking_id, kind)` constraint decides the race, not the code.
 | `APP_BASE_URL` | yes | Links cannot be built; manage links vanish from invites |
 | `OPS_PASSWORD` | yes | `/ops` refuses all logins (fails closed) |
 | `CRON_SECRET` | yes | Reminder cron refuses all requests (fails closed) |
-| `RESEND_API_KEY` | no | Reminders recorded as `skipped`, never sent |
-| `REMINDER_FROM` | no | Same |
+| `RESEND_API_KEY` | **for public booking** | Reminders recorded as `skipped`; **the public page refuses every booking with a 503** |
+| `REMINDER_FROM` | **for public booking** | Same |
 | `COLD_EMAIL_DOMAINS` | no | The guard stopping reminders sending from an outreach domain is off |
 | `GOOGLE_ACCESS_TOKEN` | no | `reconcile.py` reports check 3 as SKIPPED, not passed |

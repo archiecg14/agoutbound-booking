@@ -8,6 +8,12 @@
  * Bookings are recorded with source='public' and no campaign attribution. A website visitor
  * has no campaign, and inventing one would corrupt exactly the funnel numbers this system
  * exists to keep honest.
+ *
+ * This endpoint no longer books anything. Nobody has proved they own the address they typed,
+ * so it creates a HOLD and emails a confirmation link; /c/<token> is where a booking is
+ * actually made. Until then there is no calendar event and no invitation, which is the
+ * point — a stranger must not be able to put a meeting in someone else's calendar, or make
+ * the client's account send mail to an address chosen by a stranger.
  */
 
 import { serviceClient } from "@/lib/supabase";
@@ -16,10 +22,14 @@ import {
   availabilityFor,
   loadPublicContext,
 } from "@/lib/booking-context";
-import { createEvent } from "@/lib/google-calendar";
-import { manageUrl, mintManageToken } from "@/lib/manage";
-import { notifyHost } from "@/lib/booking-notification";
-import { scheduleFor } from "@/lib/reminders";
+import {
+  HOLD_MINUTES,
+  composeConfirmEmail,
+  confirmUrl,
+  holdExpiresAt,
+  mintConfirmToken,
+} from "@/lib/confirm";
+import { sendEmail, senderConfigured, fromAddressProblem } from "@/lib/email-sender";
 import {
   MAX_PER_IP_PER_HOUR,
   checkLimits,
@@ -106,6 +116,36 @@ export async function POST(request: Request) {
   });
   if (!limits.ok) return refuse(limits.reason);
 
+  // A confirmation step cannot be allowed to half-work. Without a working sender nobody can
+  // ever confirm, so a hold would be a slot quietly taken out of circulation and a prospect
+  // left waiting for an email that is not coming. Refuse before anything is written, and
+  // say so loudly in the log — this is a configuration fault, not a visitor's mistake.
+  const base = process.env.APP_BASE_URL;
+  const senderProblem = !base
+    ? "APP_BASE_URL is not set, so no confirmation link can be built"
+    : !senderConfigured()
+      ? "no transactional sender configured (RESEND_API_KEY / REMINDER_FROM)"
+      : fromAddressProblem();
+  if (senderProblem || !base) {
+    console.error("[public/bookings] CANNOT CONFIRM BOOKINGS:", senderProblem);
+    return Response.json(
+      { error: "Online booking is temporarily unavailable. Please email us instead." },
+      { status: 503 },
+    );
+  }
+
+  // Release this person's own unconfirmed holds on this event type first. Someone who did
+  // not receive the email and simply tries again would otherwise be blocked by their own
+  // hold and told the time had gone — the most confusing possible failure.
+  const { error: releaseErr } = await db
+    .from("bookings")
+    .update({ confirm_expires_at: now })
+    .eq("event_type_id", eventType.id)
+    .eq("attendee_email", req.email)
+    .eq("status", "pending")
+    .gt("confirm_expires_at", now);
+  if (releaseErr) console.warn("[public/bookings] could not release earlier holds", releaseErr);
+
   // Availability is recomputed server-side, exactly as on the per-lead path.
   let slots;
   try {
@@ -127,6 +167,8 @@ export async function POST(request: Request) {
   const match = slots.find((s) => s.start === req.start);
   if (!match) return refuse("slot_not_offered");
 
+  const confirm = mintConfirmToken();
+
   const { data: booking, error: insertErr } = await db
     .from("bookings")
     .insert({
@@ -144,7 +186,11 @@ export async function POST(request: Request) {
       answers: req.note ? { note: req.note } : {},
       start_utc: match.start,
       end_utc: match.end,
-      status: "confirmed",
+      // A hold, not a booking. Nothing downstream — reconcile, the ledger sync, the
+      // reminder sweep — treats a pending row as a call that is going to happen.
+      status: "pending",
+      confirm_token_hash: confirm.tokenHash,
+      confirm_expires_at: holdExpiresAt(now),
       source: "public",
       created_ip: ip,
     })
@@ -153,79 +199,43 @@ export async function POST(request: Request) {
 
   if (insertErr || !booking) {
     // Usually the exclusion constraint catching a slot taken moments ago.
-    console.error("[public/bookings] insert failed", insertErr);
+    console.error("[public/bookings] hold failed", insertErr);
     return refuse("slot_not_offered");
   }
 
-  const reminders = scheduleFor(booking.start_utc, booking.end_utc, now);
-  if (reminders.length) {
-    const { error: remErr } = await db
-      .from("reminders")
-      .insert(reminders.map((r) => ({ booking_id: booking.id, kind: r.kind, due_at: r.dueAt })));
-    if (remErr) console.error("[public/bookings] scheduling reminders failed", booking.id, remErr);
-  }
+  const mail = composeConfirmEmail({
+    clientName: client.name,
+    eventName: eventType.name,
+    startUtc: booking.start_utc,
+    endUtc: booking.end_utc,
+    attendeeTz: req.timezone,
+    url: confirmUrl(base, confirm.token),
+  });
 
-  const manageLine = process.env.APP_BASE_URL
-    ? `Need to change this? ${manageUrl(process.env.APP_BASE_URL, mintManageToken(booking.id, booking.end_utc))}`
-    : null;
+  const sent = await sendEmail({ to: req.email, subject: mail.subject, text: mail.text });
 
-  try {
-    const event = await createEvent(
-      { id: connection.id, refreshToken: connection.refreshToken },
-      {
-        summary: `${eventType.name} — ${client.name}`,
-        // The note is deliberately NOT included on the public path. Anyone can book with any
-        // email address, and Google mails the invitation from the client's real account —
-        // so putting a stranger's 2000 characters in the description turns a trusted sender
-        // into a delivery channel for attacker-chosen text. The host still receives the note
-        // via notifyHost, so nothing is lost.
-        description: manageLine ?? undefined,
-        startIso: booking.start_utc,
-        endIso: booking.end_utc,
-        attendeeEmail: req.email,
-        attendeeName: req.name,
-        idempotencyKey: booking.id,
-      },
+  if (!sent.ok) {
+    // Release the slot immediately rather than leaving it held for fifteen minutes on
+    // behalf of someone who was never told how to confirm.
+    await db.from("bookings").update({ confirm_expires_at: now }).eq("id", booking.id);
+    console.error("[public/bookings] confirmation email failed, hold released", booking.id, sent.reason);
+    return Response.json(
+      { error: "We could not send your confirmation email. Please check the address and try again." },
+      { status: 502 },
     );
-    await db
-      .from("bookings")
-      .update({ google_event_id: event.id, google_synced_at: new Date().toISOString() })
-      .eq("id", booking.id);
-  } catch (err) {
-    console.error("[public/bookings] calendar write failed, booking stands unsynced", booking.id, err);
   }
 
-
-  // Tell the host. Never fatal: a booking without its notification is an annoyance, a
-  // booking lost to a bounced email is revenue.
-  try {
-    const { data: tzRow } = await db
-      .from("availability_rules")
-      .select("timezone")
-      .eq("connection_id", connection.id)
-      .limit(1)
-      .maybeSingle();
-
-    const result = await notifyHost(connection.email, {
-      clientName: client.name,
-      eventName: eventType.name,
-      attendeeName: req.name,
-      attendeeEmail: req.email,
-      startUtc: booking.start_utc,
-      endUtc: booking.end_utc,
-      hostTimezone: tzRow?.timezone ?? null,
-      note: req.note,
-      campaignId: null,
-      wave: null,
-      source: "public",
-    });
-    if (!result.sent) console.warn("[public/bookings] host not notified:", result.reason);
-  } catch (err) {
-    console.error("[public/bookings] host notification threw", err);
-  }
-
+  // 202, not 201: accepted, not created. There is no booking yet and the response must not
+  // imply there is — the page tells them to go and check their email.
   return Response.json(
-    { id: booking.id, start: booking.start_utc, end: booking.end_utc, limitPerHour: MAX_PER_IP_PER_HOUR },
-    { status: 201 },
+    {
+      pending: true,
+      start: booking.start_utc,
+      end: booking.end_utc,
+      email: req.email,
+      holdMinutes: HOLD_MINUTES,
+      limitPerHour: MAX_PER_IP_PER_HOUR,
+    },
+    { status: 202 },
   );
 }

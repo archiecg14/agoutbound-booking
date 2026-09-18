@@ -314,8 +314,9 @@ export class CalendarUnavailable extends Error {
 }
 
 /**
- * Slots for a window. Busy time is Google's freebusy plus our own confirmed bookings —
- * both are needed, because a booking made seconds ago may not be on the calendar yet.
+ * Slots for a window. Busy time is Google's freebusy, our own confirmed bookings, and any
+ * public hold still waiting on its confirmation email. All three are needed: a booking made
+ * seconds ago may not be on the calendar yet, and a hold is not on the calendar at all.
  */
 /** The minimum availabilityFor needs. BookingContext satisfies it structurally, and so
  *  does a booking being rescheduled — which has no link token to load a context from. */
@@ -344,7 +345,7 @@ export async function availabilityFor(
    */
   excludeInterval?: Interval,
 ): Promise<Interval[]> {
-  const [{ data: rules }, { data: overrides }, { data: existing }] = await Promise.all([
+  const [{ data: rules }, { data: overrides }, { data: existing, error: existingErr }] = await Promise.all([
     db
       .from("availability_rules")
       .select("weekday, start_local, end_local, timezone")
@@ -355,15 +356,28 @@ export async function availabilityFor(
       .eq("connection_id", ctx.connection.id),
     db
       .from("bookings")
-      .select("start_utc, end_utc")
+      .select("start_utc, end_utc, status, confirm_expires_at")
       .eq("connection_id", ctx.connection.id)
-      .eq("status", "confirmed")
+      // Unconfirmed public holds count as busy too, or two people picking the same time in
+      // the same minute would both be sent a confirmation link and one of them would be
+      // turned away after committing to it. Expiry is applied below rather than in the
+      // query, so it is filtered by one clock — this function's `now` — and can be tested.
+      .in("status", ["confirmed", "pending"])
       // Overlap, not containment. The original (start >= from AND end <= to) missed any
       // booking straddling the window edge, so a booking running 09:45-10:15 was invisible
       // to a window starting at 10:00 and its slot was offered again.
       .lt("start_utc", toIso)
       .gt("end_utc", fromIso),
   ]);
+
+  // Fail CLOSED, exactly as the Google call below does. This query silently ignored its
+  // error, so anything that broke it — a missing column after a migration that had not been
+  // run, a permissions change — produced an empty busy list and offered every slot the
+  // client was already booked for. "No busy time" is never a safe default.
+  if (existingErr) {
+    console.error("[availability] could not read existing bookings; refusing to guess", existingErr);
+    throw new CalendarUnavailable(false);
+  }
 
   let googleBusy: Interval[] = [];
   try {
@@ -384,9 +398,19 @@ export async function availabilityFor(
     throw new CalendarUnavailable(false);
   }
 
+  // A hold blocks its slot until it expires, then stops mattering — no sweeper, nothing to
+  // clean up, and no cron job whose silent failure would freeze a calendar behind holds
+  // nobody can see. An expired row simply stops being counted here.
+  const nowMs = Date.parse(now);
+  const blocking = (existing ?? []).filter((b) => {
+    if (b.status !== "pending") return true;
+    const exp = Date.parse((b.confirm_expires_at as string | null) ?? "");
+    return !Number.isNaN(exp) && exp > nowMs;
+  });
+
   let busy: Interval[] = [
     ...googleBusy,
-    ...(existing ?? []).map((b) => ({ start: b.start_utc as string, end: b.end_utc as string })),
+    ...blocking.map((b) => ({ start: b.start_utc as string, end: b.end_utc as string })),
   ];
 
   if (excludeInterval) {

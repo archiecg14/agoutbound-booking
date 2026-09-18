@@ -2,7 +2,6 @@
 
 import { useMemo, useState } from "react";
 import type { Slot } from "../../../b/[token]/ui";
-import { Booked } from "../../../b/[token]/ui";
 
 /**
  * The public flow. Same two steps as the per-lead page, with one difference that matters:
@@ -84,13 +83,16 @@ export function PublicBookingFlow({
           }),
         },
       );
-      if (res.status === 201) {
+      // 202, not 201. Nothing is booked yet — a confirmation link is on its way, and
+      // saying "you're booked in" here would be a lie the calendar then contradicts.
+      if (res.status === 202) {
         setDone(chosen);
         return;
       }
       const body = (await res.json().catch(() => ({}))) as { error?: string };
       setNotice(body.error ?? "That did not work. Please try again.");
-      // A lost slot sends them back to the picker rather than replacing the page.
+      // A lost slot sends them back to the picker rather than replacing the page. A failed
+      // confirmation email does not — the time is fine, the address is what needs fixing.
       if (res.status === 409) setChosen(null);
     } catch {
       setNotice("We could not reach the server. Please try again.");
@@ -99,7 +101,7 @@ export function PublicBookingFlow({
     }
   }
 
-  if (done) return <Booked start={done.start} zone={zone} email={form.email} />;
+  if (done) return <CheckYourEmail start={done.start} zone={zone} email={form.email} />;
 
   if (chosen) {
     return (
@@ -169,7 +171,7 @@ export function PublicBookingFlow({
         </div>
 
         <button className="btn" type="submit" disabled={busy}>
-          {busy ? "Confirming…" : "Confirm booking"}
+          {busy ? "Sending…" : "Book this time"}
         </button>
         <button
           className="btn btn--quiet"
@@ -222,6 +224,28 @@ export function PublicBookingFlow({
         <button onClick={() => setZone(zone === "UTC" ? detectZone() : "UTC")}>
           {zone === "UTC" ? "Use my timezone" : "Show in UTC"}
         </button>
+      </p>
+    </div>
+  );
+}
+
+/**
+ * The honest end of the public flow.
+ *
+ * It deliberately does NOT say "you're booked in". Nothing is booked until the link in the
+ * email is opened, and a page that claims otherwise produces people who never confirm and
+ * then arrive for a call that does not exist.
+ */
+function CheckYourEmail({ start, zone, email }: { start: string; zone: string; email: string }) {
+  return (
+    <div className="state state--good">
+      <div className="state__title">Check your email</div>
+      <p className="state__body">
+        We&rsquo;ve sent a confirmation link to {email}. Open it and{" "}
+        {fmt(start, zone, { weekday: "long", day: "numeric", month: "long" })} at{" "}
+        {fmt(start, zone, { hour: "2-digit", minute: "2-digit", hour12: false })} is yours.
+        <br />
+        We&rsquo;ll hold the time for 15 minutes.
       </p>
     </div>
   );
