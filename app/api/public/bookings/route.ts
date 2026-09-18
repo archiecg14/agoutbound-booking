@@ -25,11 +25,13 @@ import {
 import {
   HOLD_MINUTES,
   composeConfirmEmail,
+  confirmationRequired,
   confirmUrl,
   holdExpiresAt,
   mintConfirmToken,
 } from "@/lib/confirm";
 import { sendEmail, senderConfigured, fromAddressProblem } from "@/lib/email-sender";
+import { finaliseBooking } from "@/lib/booking-finalise";
 import {
   MAX_PER_IP_PER_HOUR,
   checkLimits,
@@ -116,6 +118,8 @@ export async function POST(request: Request) {
   });
   if (!limits.ok) return refuse(limits.reason);
 
+  const mustConfirm = confirmationRequired();
+
   // A confirmation step cannot be allowed to half-work. Without a working sender nobody can
   // ever confirm, so a hold would be a slot quietly taken out of circulation and a prospect
   // left waiting for an email that is not coming. Refuse before anything is written, and
@@ -126,7 +130,7 @@ export async function POST(request: Request) {
     : !senderConfigured()
       ? "no transactional sender configured (RESEND_API_KEY / REMINDER_FROM)"
       : fromAddressProblem();
-  if (senderProblem || !base) {
+  if (mustConfirm && (senderProblem || !base)) {
     console.error("[public/bookings] CANNOT CONFIRM BOOKINGS:", senderProblem);
     return Response.json(
       { error: "Online booking is temporarily unavailable. Please email us instead." },
@@ -166,6 +170,57 @@ export async function POST(request: Request) {
 
   const match = slots.find((s) => s.start === req.start);
   if (!match) return refuse("slot_not_offered");
+
+  // Booked outright, because REQUIRE_EMAIL_CONFIRMATION=false. Every other guard still
+  // applies; what is missing is only the proof that the address belongs to the person who
+  // typed it. This is the pre-confirmation behaviour, kept whole rather than deleted so the
+  // two paths cannot drift while the sender is being set up.
+  if (!mustConfirm) {
+    const { data: direct, error: directErr } = await db
+      .from("bookings")
+      .insert({
+        event_type_id: eventType.id,
+        connection_id: connection.id,
+        client_id: eventType.clientId,
+        link_token_id: null,
+        lead_email: null,
+        campaign_id: null,
+        wave: null,
+        sequence_step: null,
+        attendee_name: req.name,
+        attendee_email: req.email,
+        attendee_tz: req.timezone,
+        answers: req.note ? { note: req.note } : {},
+        start_utc: match.start,
+        end_utc: match.end,
+        status: "confirmed",
+        source: "public",
+        created_ip: ip,
+      })
+      .select("id, start_utc, end_utc")
+      .single();
+
+    if (directErr || !direct) {
+      console.error("[public/bookings] insert failed", directErr);
+      return refuse("slot_not_offered");
+    }
+
+    await finaliseBooking(db, {
+      booking: { id: direct.id, startUtc: direct.start_utc, endUtc: direct.end_utc },
+      connection: { id: connection.id, refreshToken: connection.refreshToken, email: connection.email },
+      client: { name: client.name },
+      eventType: { name: eventType.name },
+      attendee: { name: req.name, email: req.email },
+      note: req.note,
+      source: "public",
+      now,
+    });
+
+    return Response.json(
+      { id: direct.id, start: direct.start_utc, end: direct.end_utc, limitPerHour: MAX_PER_IP_PER_HOUR },
+      { status: 201 },
+    );
+  }
 
   const confirm = mintConfirmToken();
 
@@ -209,7 +264,7 @@ export async function POST(request: Request) {
     startUtc: booking.start_utc,
     endUtc: booking.end_utc,
     attendeeTz: req.timezone,
-    url: confirmUrl(base, confirm.token),
+    url: confirmUrl(base as string, confirm.token),
   });
 
   const sent = await sendEmail({ to: req.email, subject: mail.subject, text: mail.text });

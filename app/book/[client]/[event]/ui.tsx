@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from "react";
 import type { Slot } from "../../../b/[token]/ui";
+import { Booked } from "../../../b/[token]/ui";
 
 /**
  * The public flow. Same two steps as the per-lead page, with one difference that matters:
@@ -43,7 +44,10 @@ export function PublicBookingFlow({
 }) {
   const [zone, setZone] = useState(detectZone);
   const [chosen, setChosen] = useState<Slot | null>(null);
-  const [done, setDone] = useState<Slot | null>(null);
+  // Which ending we reached matters: 201 means booked, 202 means a link is in their inbox
+  // and nothing is booked yet. Showing the wrong one produces either a no-show or a
+  // duplicate booking.
+  const [done, setDone] = useState<{ slot: Slot; confirmed: boolean } | null>(null);
   const [form, setForm] = useState({ name: "", email: "", note: "", company: "" });
   const [busy, setBusy] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
@@ -83,10 +87,11 @@ export function PublicBookingFlow({
           }),
         },
       );
-      // 202, not 201. Nothing is booked yet — a confirmation link is on its way, and
-      // saying "you're booked in" here would be a lie the calendar then contradicts.
-      if (res.status === 202) {
-        setDone(chosen);
+      // 201 = booked outright. 202 = accepted, with a confirmation link sent and nothing
+      // booked yet. Saying "you're booked in" for a 202 would be a lie the calendar then
+      // contradicts, so the two are never collapsed into one message.
+      if (res.status === 201 || res.status === 202) {
+        setDone({ slot: chosen, confirmed: res.status === 201 });
         return;
       }
       const body = (await res.json().catch(() => ({}))) as { error?: string };
@@ -101,7 +106,13 @@ export function PublicBookingFlow({
     }
   }
 
-  if (done) return <CheckYourEmail start={done.start} zone={zone} email={form.email} />;
+  if (done) {
+    return done.confirmed ? (
+      <Booked start={done.slot.start} zone={zone} email={form.email} />
+    ) : (
+      <CheckYourEmail start={done.slot.start} zone={zone} email={form.email} />
+    );
+  }
 
   if (chosen) {
     return (
@@ -171,7 +182,7 @@ export function PublicBookingFlow({
         </div>
 
         <button className="btn" type="submit" disabled={busy}>
-          {busy ? "Sending…" : "Book this time"}
+          {busy ? "Booking…" : "Book this time"}
         </button>
         <button
           className="btn btn--quiet"

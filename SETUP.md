@@ -176,7 +176,8 @@ unique `(booking_id, kind)` constraint decides the race, not the code.
 | `APP_BASE_URL` | yes | Links cannot be built; manage links vanish from invites |
 | `OPS_PASSWORD` | yes | `/ops` refuses all logins (fails closed) |
 | `CRON_SECRET` | yes | Reminder cron refuses all requests (fails closed) |
-| `RESEND_API_KEY` | **for public booking** | Reminders recorded as `skipped`; **the public page refuses every booking with a 503** |
-| `REMINDER_FROM` | **for public booking** | Same |
+| `RESEND_API_KEY` | **if confirmation is on** | Reminders recorded as `skipped`; with `REQUIRE_EMAIL_CONFIRMATION` on, the public page refuses every booking with a 503 |
+| `REMINDER_FROM` | **if confirmation is on** | Same |
+| `REQUIRE_EMAIL_CONFIRMATION` | no | Defaults to **on**. `false` books public requests outright, without proving the address belongs to whoever typed it |
 | `COLD_EMAIL_DOMAINS` | no | The guard stopping reminders sending from an outreach domain is off |
 | `GOOGLE_ACCESS_TOKEN` | no | `reconcile.py` reports check 3 as SKIPPED, not passed |

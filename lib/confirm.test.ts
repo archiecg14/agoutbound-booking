@@ -2,6 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import {
   HOLD_MINUTES,
+  confirmationRequired,
   canConfirm,
   composeConfirmEmail,
   confirmUrl,
@@ -115,4 +116,25 @@ test("times render in the booker's zone, not the server's", () => {
     url: "u",
   });
   assert.match(text, /05:00–05:30 \(America\/New York\)/);
+});
+
+test("confirmation defaults to ON, and only the exact string \"false\" turns it off", () => {
+  // A missing or mistyped variable must give the careful behaviour. The opposite default
+  // would start accepting unverified bookings and look identical to everything working.
+  const original = process.env.REQUIRE_EMAIL_CONFIRMATION;
+  try {
+    delete process.env.REQUIRE_EMAIL_CONFIRMATION;
+    assert.equal(confirmationRequired(), true, "unset must mean on");
+
+    for (const v of ["", "0", "no", "FALSE", "off", "true"]) {
+      process.env.REQUIRE_EMAIL_CONFIRMATION = v;
+      assert.equal(confirmationRequired(), true, `${JSON.stringify(v)} must not switch it off`);
+    }
+
+    process.env.REQUIRE_EMAIL_CONFIRMATION = "false";
+    assert.equal(confirmationRequired(), false);
+  } finally {
+    if (original === undefined) delete process.env.REQUIRE_EMAIL_CONFIRMATION;
+    else process.env.REQUIRE_EMAIL_CONFIRMATION = original;
+  }
 });

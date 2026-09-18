@@ -138,3 +138,20 @@ export function confirmRefusalMessage(reason: ConfirmRefusal): { title: string; 
       };
   }
 }
+
+/**
+ * Whether a public booking must be confirmed by email before it becomes real.
+ *
+ * Defaults to ON. A missing or mistyped variable therefore gives the careful behaviour, not
+ * the permissive one — forgetting it on a new host produces a loud 503 that gets noticed,
+ * whereas the opposite default would quietly start accepting unverified bookings and look
+ * exactly like everything working.
+ *
+ * Set REQUIRE_EMAIL_CONFIRMATION=false only while there is no transactional sender. The
+ * cost of that setting is precise: anyone can book under someone else's address, which puts
+ * a meeting in the client's calendar under a name nobody checked and makes the client's own
+ * Google account send that person an invitation.
+ */
+export function confirmationRequired(): boolean {
+  return process.env.REQUIRE_EMAIL_CONFIRMATION !== "false";
+}
