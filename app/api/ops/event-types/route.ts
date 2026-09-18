@@ -47,8 +47,13 @@ export async function POST(request: Request) {
     description: typeof b.description === "string" ? b.description.trim() || null : null,
     duration_min: durationMin,
     buffer_before: Number.isInteger(Number(b.bufferBefore)) ? Number(b.bufferBefore) : 0,
-    buffer_after: Number.isInteger(Number(b.bufferAfter)) ? Number(b.bufferAfter) : 0,
-    min_notice_min: Number.isInteger(Number(b.minNoticeMin)) ? Number(b.minNoticeMin) : 60,
+    // Every fallback below matches what the form shows, so a field arriving blank produces
+    // the event type the operator was looking at rather than a quietly different one.
+    //
+    // buffer_after mattered most: it fell back to 0, so a blank field created an event type
+    // that books calls end to end with no gap - and nothing on screen would have said so.
+    buffer_after: Number.isInteger(Number(b.bufferAfter)) ? Number(b.bufferAfter) : 15,
+    min_notice_min: Number.isInteger(Number(b.minNoticeMin)) ? Number(b.minNoticeMin) : 120,
     // Matches the form's default. Two different fallbacks meant a blank field produced a
     // thirty-day window while the screen had said twenty-one - a silent disagreement
     // nobody would look for.
