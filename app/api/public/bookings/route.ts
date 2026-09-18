@@ -67,7 +67,7 @@ export async function POST(request: Request) {
   const ip = bucketFromHeaders(request.headers);
   const hourAgo = new Date(Date.parse(now) - 3_600_000).toISOString();
 
-  const [{ count: futureForEmail }, { count: fromIp }] = await Promise.all([
+  const [emailCount, ipCount] = await Promise.all([
     db
       .from("bookings")
       .select("id", { count: "exact", head: true })
@@ -82,12 +82,27 @@ export async function POST(request: Request) {
           .eq("created_ip", ip)
           .eq("source", "public")
           .gte("created_at", hourAgo)
-      : Promise.resolve({ count: 0 }),
+      : Promise.resolve({ count: 0, error: null }),
   ]);
 
+  // Fail CLOSED. A failing count returns count=null with an error, and the previous
+  // `count ?? 0` turned that into zero — so a transient database blip silently disabled
+  // both limits on the one endpoint a stranger can reach. Verified against the live
+  // database before changing it.
+  if (emailCount.error || ipCount.error || emailCount.count === null || ipCount.count === null) {
+    console.error("[public/bookings] limit check failed; refusing rather than allowing", {
+      emailError: emailCount.error?.message,
+      ipError: ipCount.error?.message,
+    });
+    return Response.json(
+      { error: "We could not process that just now. Please try again shortly." },
+      { status: 503 },
+    );
+  }
+
   const limits = checkLimits({
-    futureBookingsForEmail: futureForEmail ?? 0,
-    bookingsFromIpLastHour: fromIp ?? 0,
+    futureBookingsForEmail: emailCount.count,
+    bookingsFromIpLastHour: ipCount.count,
   });
   if (!limits.ok) return refuse(limits.reason);
 
@@ -159,7 +174,12 @@ export async function POST(request: Request) {
       { id: connection.id, refreshToken: connection.refreshToken },
       {
         summary: `${eventType.name} — ${client.name}`,
-        description: [req.note, manageLine].filter(Boolean).join("\n\n") || undefined,
+        // The note is deliberately NOT included on the public path. Anyone can book with any
+        // email address, and Google mails the invitation from the client's real account —
+        // so putting a stranger's 2000 characters in the description turns a trusted sender
+        // into a delivery channel for attacker-chosen text. The host still receives the note
+        // via notifyHost, so nothing is lost.
+        description: manageLine ?? undefined,
         startIso: booking.start_utc,
         endIso: booking.end_utc,
         attendeeEmail: req.email,

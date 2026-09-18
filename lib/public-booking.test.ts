@@ -16,8 +16,11 @@ const good = {
   timezone: "Europe/London",
 };
 
+/** What the real form submits: the honeypot present and empty. */
+const submitted = { ...good, company: "" };
+
 test("a valid submission is accepted and normalised", () => {
-  const r = validatePublicRequest({ ...good, note: "  hiring two engineers  " });
+  const r = validatePublicRequest({ ...submitted, note: "  hiring two engineers  " });
   assert.equal(r.ok, true);
   if (!r.ok) return;
   assert.equal(r.value.email, "jane@example.com");
@@ -27,7 +30,7 @@ test("a valid submission is accepted and normalised", () => {
 
 test("the honeypot rejects silently, with no hint as to why", () => {
   // A bot told why it failed is a bot that tries again differently.
-  const r = validatePublicRequest({ ...good, company: "Acme Ltd" });
+  const r = validatePublicRequest({ ...submitted, company: "Acme Ltd" });
   assert.equal(r.ok, false);
   if (!r.ok) {
     assert.equal(r.reason, "rejected");
@@ -39,20 +42,26 @@ test("the honeypot rejects silently, with no hint as to why", () => {
   }
 });
 
-test("an empty honeypot is fine", () => {
+test("an empty honeypot is fine, but an absent one is not", () => {
   assert.equal(validatePublicRequest({ ...good, company: "   " }).ok, true);
+  assert.equal(validatePublicRequest({ ...good, company: "" }).ok, true);
+  // Verified live: both of these used to be ACCEPTED. A bot that never renders the form
+  // sends neither the field nor a value, so only rejecting non-empty strings caught
+  // nothing that was actually trying to evade.
+  assert.equal(validatePublicRequest(good).ok, false, "field omitted entirely must be rejected");
+  assert.equal(validatePublicRequest({ ...good, company: null }).ok, false, "null must be rejected");
 });
 
 test("bad submissions are refused", () => {
   const bad: unknown[] = [
     null,
     "nope",
-    { ...good, email: "not-an-email" },
-    { ...good, name: "J" },
-    { ...good, name: "   " },
-    { ...good, timezone: "Mars/Olympus" },
-    { ...good, start: "whenever" },
-    { ...good, note: "x".repeat(2001) },
+    { ...submitted, email: "not-an-email" },
+    { ...submitted, name: "J" },
+    { ...submitted, name: "   " },
+    { ...submitted, timezone: "Mars/Olympus" },
+    { ...submitted, start: "whenever" },
+    { ...submitted, note: "x".repeat(2001) },
   ];
   for (const b of bad) assert.equal(validatePublicRequest(b).ok, false, JSON.stringify(b).slice(0, 50));
 });

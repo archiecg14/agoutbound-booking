@@ -60,7 +60,11 @@ export function validatePublicRequest(
   if (typeof body !== "object" || body === null) return { ok: false, reason: "invalid_request" };
   const b = body as Record<string, unknown>;
 
-  if (typeof b.company === "string" && b.company.trim().length > 0) {
+  // The honeypot is a hidden field the real form always submits, empty. Checking only for
+  // a non-empty string meant a bot that omitted the key entirely — or sent null — walked
+  // straight past it, which a live test confirmed. Requiring the field present and empty
+  // catches anything not driving the actual form. The only intended caller is that form.
+  if (typeof b.company !== "string" || b.company.trim().length > 0) {
     return { ok: false, reason: "rejected" };
   }
 
