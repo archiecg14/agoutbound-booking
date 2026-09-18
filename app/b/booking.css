@@ -311,3 +311,11 @@
   border-radius: var(--r-md);
   font: inherit;
 }
+
+/* Embedded in a modal on the client's own site: the frame supplies the padding and the
+   title, so the page gives every pixel it can to the times. */
+.shell--embed {
+  padding: 18px 16px 24px;
+  max-width: none;
+  margin: 0;
+}

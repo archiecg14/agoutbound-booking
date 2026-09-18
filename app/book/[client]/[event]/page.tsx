@@ -34,6 +34,10 @@ export async function generateMetadata(props: PageProps<"/book/[client]/[event]"
 
 export default async function Page(props: PageProps<"/book/[client]/[event]">) {
   const { client, event } = await props.params;
+  // Inside a modal on the client's own site the surrounding page already says whose
+  // calendar this is, so the identity block and the footer are repetition taking up the
+  // vertical space the times need - which on a phone is most of the screen.
+  const embedded = (await props.searchParams).embed === "1";
   const now = new Date().toISOString();
   const db = serviceClient();
 
@@ -58,9 +62,9 @@ export default async function Page(props: PageProps<"/book/[client]/[event]">) {
   }
 
   return (
-    <main className="shell">
-      <Identity client={loaded.context.client} event={loaded.context.eventType} />
-      {loaded.context.eventType.description ? (
+    <main className={embedded ? "shell shell--embed" : "shell"}>
+      {embedded ? null : <Identity client={loaded.context.client} event={loaded.context.eventType} />}
+      {!embedded && loaded.context.eventType.description ? (
         <p className="tz" style={{ marginTop: 0 }}>{loaded.context.eventType.description}</p>
       ) : null}
 
@@ -73,7 +77,7 @@ export default async function Page(props: PageProps<"/book/[client]/[event]">) {
         <PublicBookingFlow clientSlug={client} eventSlug={event} slots={slots} />
       )}
 
-      <footer className="chrome">Scheduling by AG Outbound</footer>
+      {embedded ? null : <footer className="chrome">Scheduling by AG Outbound</footer>}
     </main>
   );
 }
