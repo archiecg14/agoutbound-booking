@@ -31,7 +31,9 @@ export function EventTypeForm({ clients, connections }: { clients: Option[]; con
     connectionId: connections[0]?.id ?? "",
     slug: "intro-call",
     name: "Intro call",
-    durationMin: 30,
+    // Fifteen, matching the live intro call. With the fifteen-minute buffer below it
+    // still reserves half an hour, so the ask of a stranger is smaller than the cost.
+    durationMin: 15,
     slotIntervalMin: 15,
     bufferBefore: 0,
     bufferAfter: 15,
