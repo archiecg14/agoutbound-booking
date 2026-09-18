@@ -73,12 +73,14 @@ test("an address is capped per hour", () => {
 });
 
 test("IPs are truncated before storage", () => {
-  // The last octet adds nothing to rate limiting and everything to what a leak exposes.
+  // The host portion adds nothing to rate limiting and everything to what a leak exposes.
   assert.equal(truncateIp("203.0.113.42"), "203.0.113.0/24");
-  assert.equal(truncateIp("203.0.113.42, 70.41.3.18"), "203.0.113.0/24", "takes the client, not the proxy");
   assert.equal(truncateIp("2001:db8:85a3:8d3:1319:8a2e:370:7348"), "2001:db8:85a3:8d3::/64");
   assert.equal(truncateIp(null), null);
   assert.equal(truncateIp("garbage"), null);
+  // The header-parsing assertion that used to live here encoded the BUG: it asserted the
+  // left-most x-forwarded-for entry was used, which is the value a caller supplies. Header
+  // handling now lives in client-ip.ts and is tested there, right-most first.
 });
 
 test("an already-booked visitor gets a useful message, not a generic error", () => {

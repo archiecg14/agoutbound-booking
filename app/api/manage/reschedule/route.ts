@@ -74,13 +74,22 @@ export async function POST(request: Request) {
     return Response.json({ error: message, code: "slot_not_offered" }, { status });
   }
 
-  const { error } = await db
+  // .select() is load-bearing, not decoration. Without it a PATCH matching zero rows
+  // returns HTTP 204 with no body and error === null — indistinguishable from success.
+  // A cancellation landing between the check above and this write would then be reported
+  // as a successful move, and the calendar event patched back to a live time.
+  const { data: moved, error } = await db
     .from("bookings")
     .update({ start_utc: match.start, end_utc: match.end })
     .eq("id", b.id)
-    // Still confirmed, or there is nothing to move. Guards against a cancellation that
-    // landed between the check above and this write.
-    .eq("status", "confirmed");
+    .eq("status", "confirmed")
+    .select("id")
+    .maybeSingle();
+
+  if (!error && !moved) {
+    const { status, message } = manageRefusalMessage("already_cancelled");
+    return Response.json({ error: message, code: "already_cancelled" }, { status });
+  }
 
   if (error) {
     // The exclusion constraint lands here when the new slot was taken a moment ago.

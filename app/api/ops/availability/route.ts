@@ -60,20 +60,43 @@ export async function POST(request: Request) {
   }
 
   const db = serviceClient();
-  const { error: delErr } = await db.from("availability_rules").delete().eq("connection_id", connectionId);
-  if (delErr) {
-    console.error("[ops] clearing availability failed", delErr);
+
+  // Insert the new week FIRST, then delete the old rows by id.
+  //
+  // The original order cleared before inserting, so a failed insert left the connection
+  // with no availability at all and every booking page for that client silently rendered
+  // "No times available" — a dead page for prospects arriving from a live campaign. This
+  // way a failure leaves the previous week untouched and still bookable.
+  const { data: existing, error: readErr } = await db
+    .from("availability_rules")
+    .select("id")
+    .eq("connection_id", connectionId);
+
+  if (readErr) {
+    console.error("[ops] reading existing availability failed", readErr);
     return Response.json({ error: "write_failed" }, { status: 500 });
   }
 
   if (rows.length) {
     const { error } = await db.from("availability_rules").insert(rows);
     if (error) {
-      // The old rules are already gone. Say so plainly rather than returning a generic
-      // failure that leaves the operator believing nothing changed.
-      console.error("[ops] inserting availability failed AFTER clearing", error);
+      console.error("[ops] insert failed; the previous week is untouched", error);
+      return Response.json({ error: "write_failed" }, { status: 500 });
+    }
+  }
+
+  const oldIds = (existing ?? []).map((r) => r.id as string);
+  if (oldIds.length) {
+    const { error: delErr } = await db.from("availability_rules").delete().in("id", oldIds);
+    if (delErr) {
+      // Both weeks are live now, which over-offers rather than under-offers — the safer
+      // direction to fail in, but the operator has to know.
+      console.error("[ops] removing the previous week failed", delErr);
       return Response.json(
-        { error: "write_failed_after_clear", detail: "Previous rules were removed. Re-send the week." },
+        {
+          error: "stale_rules_remain",
+          detail: "New rules saved, but the previous week could not be removed. Save again.",
+        },
         { status: 500 },
       );
     }

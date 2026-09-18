@@ -111,26 +111,12 @@ export function checkLimits(args: {
 }
 
 /**
- * Truncate a client IP before storing it.
- *
- * A full address is personal data we have no use for; the last octet (or the back half of
- * an IPv6 address) adds nothing to rate limiting and everything to what a leak would
- * expose. Truncating keeps the limiter working and keeps the liability small.
+ * Re-exported so callers have one place to look. The implementation moved to client-ip.ts
+ * after a review found the original spoofable (it trusted the left-most x-forwarded-for
+ * entry) and wrong for IPv6 (it destroyed `::` compression, collapsing distinct networks
+ * into one bucket).
  */
-export function truncateIp(raw: string | null): string | null {
-  if (!raw) return null;
-  // x-forwarded-for is a chain; the first entry is the original client.
-  const ip = raw.split(",")[0]?.trim() ?? "";
-  if (!ip) return null;
-
-  if (ip.includes(":")) {
-    const parts = ip.split(":").filter(Boolean);
-    return parts.slice(0, 4).join(":") + "::/64";
-  }
-  const octets = ip.split(".");
-  if (octets.length !== 4) return null;
-  return `${octets[0]}.${octets[1]}.${octets[2]}.0/24`;
-}
+export { ipBucket as truncateIp, bucketFromHeaders, UNKNOWN_BUCKET } from "./client-ip.ts";
 
 export function publicRefusalMessage(reason: PublicRefusal): { status: number; message: string } {
   switch (reason) {

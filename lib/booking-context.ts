@@ -358,8 +358,11 @@ export async function availabilityFor(
       .select("start_utc, end_utc")
       .eq("connection_id", ctx.connection.id)
       .eq("status", "confirmed")
-      .gte("start_utc", fromIso)
-      .lte("end_utc", toIso),
+      // Overlap, not containment. The original (start >= from AND end <= to) missed any
+      // booking straddling the window edge, so a booking running 09:45-10:15 was invisible
+      // to a window starting at 10:00 and its slot was offered again.
+      .lt("start_utc", toIso)
+      .gt("end_utc", fromIso),
   ]);
 
   let googleBusy: Interval[] = [];

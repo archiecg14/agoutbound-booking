@@ -78,17 +78,23 @@ export async function POST(request: Request) {
   if (supersede) {
     // Expire rather than mark used: these links were never used, and used_at is the record
     // of a booking having happened. Conflating the two would corrupt the funnel counts.
-    const { error: supErr } = await db
-      .from("link_tokens")
-      .update({ expires_at: now })
-      .eq("event_type_id", eventType.id)
-      .in("lead_email", emails)
-      .is("used_at", null)
-      .gt("expires_at", now);
+    // Chunked because PostgREST serialises .in() into the request URL: 500 addresses is a
+    // 15KB URL, past the usual 8KB limit, so a full wave would fail while a small one
+    // worked — the most confusing kind of failure.
+    const CHUNK = 100;
+    for (let i = 0; i < emails.length; i += CHUNK) {
+      const { error: supErr } = await db
+        .from("link_tokens")
+        .update({ expires_at: now })
+        .eq("event_type_id", eventType.id)
+        .in("lead_email", emails.slice(i, i + CHUNK))
+        .is("used_at", null)
+        .gt("expires_at", now);
 
-    if (supErr) {
-      console.error("[links] supersede failed", supErr);
-      return Response.json({ error: "server_error" }, { status: 500 });
+      if (supErr) {
+        console.error("[links] supersede failed", supErr);
+        return Response.json({ error: "server_error" }, { status: 500 });
+      }
     }
   }
 

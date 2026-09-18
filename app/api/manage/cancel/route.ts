@@ -36,13 +36,21 @@ export async function POST(request: Request) {
     return Response.json({ error: message, code: allowed.reason }, { status });
   }
 
-  const { error } = await db
+  // .select() so a zero-row update is visible: a bare PATCH returns 204 with error === null
+  // whether it changed a row or not, so without this the endpoint cannot tell "I cancelled
+  // it" from "nothing happened" — and a genuine failure would report success.
+  const { data: cancelled, error } = await db
     .from("bookings")
     .update({ status: "cancelled", cancelled_at: now })
     .eq("id", booking!.id)
-    // Only cancel a booking that is still confirmed. A concurrent second request updates
-    // nothing rather than overwriting a cancellation that already happened.
-    .eq("status", "confirmed");
+    .eq("status", "confirmed")
+    .select("id")
+    .maybeSingle();
+
+  if (!error && !cancelled) {
+    const { status, message } = manageRefusalMessage("already_cancelled");
+    return Response.json({ error: message, code: "already_cancelled" }, { status });
+  }
 
   if (error) {
     console.error("[manage] cancel update failed", error);

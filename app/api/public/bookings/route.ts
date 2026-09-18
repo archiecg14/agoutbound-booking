@@ -24,7 +24,7 @@ import {
   MAX_PER_IP_PER_HOUR,
   checkLimits,
   publicRefusalMessage,
-  truncateIp,
+  bucketFromHeaders,
   validatePublicRequest,
   type PublicRefusal,
 } from "@/lib/public-booking";
@@ -62,7 +62,9 @@ export async function POST(request: Request) {
   const { eventType, connection, client } = loaded.context;
 
   // Limits first, before any Google call. A blocked request should cost us nothing.
-  const ip = truncateIp(request.headers.get("x-forwarded-for"));
+  // Fails closed: anything we cannot attribute lands in one shared bucket and shares one
+  // hourly allowance, rather than skipping the limit entirely as the first version did.
+  const ip = bucketFromHeaders(request.headers);
   const hourAgo = new Date(Date.parse(now) - 3_600_000).toISOString();
 
   const [{ count: futureForEmail }, { count: fromIp }] = await Promise.all([
