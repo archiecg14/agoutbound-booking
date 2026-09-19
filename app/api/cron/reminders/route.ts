@@ -71,6 +71,30 @@ export async function POST(request: Request) {
       continue;
     }
 
+    // Claim the row BEFORE sending, conditional on it still being pending.
+    //
+    // The select above filters on pending, but the update that followed the send did not,
+    // so two overlapping sweeps could both read the same row as pending and both send it.
+    // That is reachable now there is a scheduler: if the sender degrades and a batch runs
+    // past the ten-minute interval, the next sweep starts on top of the last one and the
+    // attendee gets the same reminder twice. Claiming first is what makes this file's
+    // "safe to run twice" header actually true.
+    //
+    // The trade-off, stated plainly: a crash between the claim and the send leaves a
+    // reminder marked sent that nobody received. That is rarer than an overlapping run and
+    // quieter than mailing a customer twice, and `sent_at` with no matching send is
+    // visible in the table if it is ever worth chasing.
+    const { data: claimed } = await db
+      .from("reminders")
+      .update({ status: "sent", sent_at: new Date().toISOString() })
+      .eq("id", r.id)
+      .eq("status", "pending")
+      .select("id")
+      .maybeSingle();
+
+    // Another sweep got there first. Not an error, and not ours to count.
+    if (!claimed) continue;
+
     const subject = subjectFor(r.kind as ReminderKind, client?.name ?? "us");
     const result = await sendEmail({
       to: b!.attendee_email,
@@ -80,7 +104,6 @@ export async function POST(request: Request) {
 
     if (result.ok) {
       counts.sent++;
-      await db.from("reminders").update({ status: "sent", sent_at: new Date().toISOString() }).eq("id", r.id);
     } else {
       counts.failed++;
       await db
@@ -88,6 +111,9 @@ export async function POST(request: Request) {
         .update({
           // A non-retryable failure is terminal; retrying it forever just hides it.
           status: result.retryable ? "pending" : "failed",
+          // Hand the claim back. Left set, a retryable failure would keep a sent_at it
+          // never earned, and the row would read as delivered.
+          sent_at: null,
           attempts: r.attempts + 1,
           last_error: result.reason,
         })

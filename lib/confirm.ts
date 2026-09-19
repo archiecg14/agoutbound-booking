@@ -26,7 +26,14 @@ import { hashToken, isWellFormedToken, mintToken, type MintedToken } from "./tok
 /** How long a slot is held for someone who has not answered their email yet. */
 export const HOLD_MINUTES = 15;
 
-export type ConfirmRefusal = "invalid_token" | "not_found" | "expired" | "cancelled" | "slot_gone";
+export type ConfirmRefusal =
+  | "invalid_token"
+  | "not_found"
+  | "expired"
+  | "cancelled"
+  | "slot_gone"
+  /** We could not check. Distinct from not_found on purpose - see confirmRefusalMessage. */
+  | "unavailable";
 
 export function mintConfirmToken(): MintedToken {
   return mintToken();
@@ -130,6 +137,14 @@ export function confirmRefusalMessage(reason: ConfirmRefusal): { title: string; 
       return {
         title: "That time has gone",
         body: "Someone confirmed it first. Pick another time — it only takes a moment.",
+      };
+    case "unavailable":
+      // Never "this link is not valid". Their link is fine; we are the ones that failed,
+      // and telling them to book again sends a real prospect to re-book a slot they
+      // already hold - which the per-email limit may then refuse.
+      return {
+        title: "We couldn't check just now",
+        body: "Something went wrong at our end, not yours. Open this link again in a moment and it will work.",
       };
     default:
       return {

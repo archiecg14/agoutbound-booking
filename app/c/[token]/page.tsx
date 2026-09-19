@@ -61,13 +61,21 @@ export default async function Page(props: PageProps<"/c/[token]">) {
 
   // Looked up by hash — the token itself is never stored, so a leaked database yields no
   // working links.
-  const { data: b } = await db
+  const { data: b, error: lookupErr } = await db
     .from("bookings")
     .select(
       "id, client_id, event_type_id, connection_id, status, start_utc, end_utc, attendee_name, attendee_email, attendee_tz, answers, confirm_expires_at",
     )
     .eq("confirm_token_hash", hashConfirmToken(token))
     .maybeSingle();
+
+  // "We could not look it up" is not "no such booking". This error used to be discarded,
+  // so a database blip told someone holding a perfectly good link that it was invalid and
+  // invited them to book again - losing the booking to a few seconds of downtime.
+  if (lookupErr) {
+    console.error("[c] lookup failed", lookupErr);
+    return <Refused reason="unavailable" />;
+  }
 
   const allowed = canConfirm(
     b && { status: b.status as string, confirmExpiresAt: b.confirm_expires_at as string | null },

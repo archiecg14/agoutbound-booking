@@ -345,7 +345,11 @@ export async function availabilityFor(
    */
   excludeInterval?: Interval,
 ): Promise<Interval[]> {
-  const [{ data: rules }, { data: overrides }, { data: existing, error: existingErr }] = await Promise.all([
+  const [
+    { data: rules, error: rulesErr },
+    { data: overrides, error: overridesErr },
+    { data: existing, error: existingErr },
+  ] = await Promise.all([
     db
       .from("availability_rules")
       .select("weekday, start_local, end_local, timezone")
@@ -370,12 +374,20 @@ export async function availabilityFor(
       .gt("end_utc", fromIso),
   ]);
 
-  // Fail CLOSED, exactly as the Google call below does. This query silently ignored its
-  // error, so anything that broke it — a missing column after a migration that had not been
-  // run, a permissions change — produced an empty busy list and offered every slot the
-  // client was already booked for. "No busy time" is never a safe default.
-  if (existingErr) {
-    console.error("[availability] could not read existing bookings; refusing to guess", existingErr);
+  // All three fail CLOSED, exactly as the Google call below does. Each of them used to
+  // discard its error, and an empty result is a lie in a different direction for each:
+  //
+  //   existing  — no busy time, so slots the client is already booked for are offered
+  //   overrides — no blocks, so a day the client deliberately closed becomes bookable
+  //   rules     — no working hours, so the page says "No times available" as though that
+  //               were true, and a prospect from a live campaign leaves
+  //
+  // The first was fixed on its own and left the other two asymmetric, which is how the
+  // overrides case survived. There is no version of this function where guessing is better
+  // than refusing, so none of the three guesses now.
+  const queryErr = existingErr ?? overridesErr ?? rulesErr;
+  if (queryErr) {
+    console.error("[availability] could not read availability; refusing to guess", queryErr);
     throw new CalendarUnavailable(false);
   }
 
