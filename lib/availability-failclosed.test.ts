@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { availabilityFor, CalendarUnavailable } from "./booking-context.ts";
+import { availabilityFor } from "./booking-context.ts";
 
 /**
  * Guards the fail-closed rule for the three queries availability is built from.
