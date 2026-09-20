@@ -147,3 +147,19 @@ button {
 :focus:not(:focus-visible) {
   outline: none;
 }
+
+/* Content for screen readers only.
+   Headings and status messages that the sighted layout already communicates through
+   position and colour still have to exist for someone navigating by heading or listening
+   to a live region. This keeps them in the accessibility tree and out of the design. */
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}

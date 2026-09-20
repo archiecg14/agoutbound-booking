@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import type { Slot } from "../../../b/[token]/ui";
 import { Booked } from "../../../b/[token]/ui";
 
@@ -55,6 +55,9 @@ export function PublicBookingFlow({
   const [busy, setBusy] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
   const [activeDay, setActiveDay] = useState(0);
+  // Sighted users see the slot grid swap for a form. Everyone else gets told.
+  const [announcement, setAnnouncement] = useState("");
+  const formHeadingRef = useRef<HTMLHeadingElement>(null);
 
   const days = useMemo(() => {
     const map = new Map<string, Slot[]>();
@@ -68,6 +71,30 @@ export function PublicBookingFlow({
   }, [slots, zone]);
 
   const times = days[activeDay]?.[1] ?? [];
+
+  // Picking a time replaces the whole grid with a form. Without moving focus, a keyboard
+  // or screen-reader user is left where the grid used to be with no idea anything changed,
+  // and has to go hunting for the form they just asked for. Focus is a DOM side effect of
+  // the render, so it belongs in an effect; the wording that goes with it is set by the
+  // handler that caused it.
+  useEffect(() => {
+    if (chosen) formHeadingRef.current?.focus();
+  }, [chosen]);
+
+  /** A failure the user has to act on: shown, and said out loud. */
+  function fail(message: string) {
+    setNotice(message);
+    setAnnouncement(message);
+  }
+
+  function describeDay(day: [string, Slot[]]) {
+    const count = day[1].length;
+    return `${count} ${count === 1 ? "time" : "times"} available on ${fmt(day[1][0].start, zone, {
+      weekday: "long",
+      day: "numeric",
+      month: "long",
+    })}.`;
+  }
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
@@ -98,12 +125,12 @@ export function PublicBookingFlow({
         return;
       }
       const body = (await res.json().catch(() => ({}))) as { error?: string };
-      setNotice(body.error ?? "That did not work. Please try again.");
+      fail(body.error ?? "That did not work. Please try again.");
       // A lost slot sends them back to the picker rather than replacing the page. A failed
       // confirmation email does not — the time is fine, the address is what needs fixing.
       if (res.status === 409) setChosen(null);
     } catch {
-      setNotice("We could not reach the server. Please try again.");
+      fail("We could not reach the server. Please try again.");
     } finally {
       setBusy(false);
     }
@@ -120,6 +147,17 @@ export function PublicBookingFlow({
   if (chosen) {
     return (
       <form onSubmit={submit}>
+        <p className="sr-only" role="status" aria-live="polite">
+          {announcement}
+        </p>
+
+        {/* tabIndex -1 makes this focusable programmatically but keeps it out of the tab
+            order. Focusing the heading rather than the first input means the step is
+            announced before the field, so nobody is typing into an unexplained box. */}
+        <h2 className="sr-only" tabIndex={-1} ref={formHeadingRef}>
+          Confirm your booking
+        </h2>
+
         <div className="chosen">
           <div className="chosen__when">
             {fmt(chosen.start, zone, { weekday: "long", day: "numeric", month: "long" })}
@@ -131,7 +169,7 @@ export function PublicBookingFlow({
           <div className="chosen__who">{zone.replace(/_/g, " ")}</div>
         </div>
 
-        {notice ? <div className="notice">{notice}</div> : null}
+        {notice ? <div className="notice" role="alert">{notice}</div> : null}
 
         <div className="field">
           <label className="field__label" htmlFor="name">Your name</label>
@@ -212,11 +250,32 @@ export function PublicBookingFlow({
 
   return (
     <div>
-      {notice ? <div className="notice">{notice}</div> : null}
+      <p className="sr-only" role="status" aria-live="polite">
+        {announcement}
+      </p>
+
+      <h2 className="sr-only">Choose a time</h2>
+
+      {notice ? <div className="notice" role="alert">{notice}</div> : null}
 
       <div className="days" role="group" aria-label="Choose a day">
         {days.map(([key, daySlots], i) => (
-          <button key={key} className="day" aria-pressed={i === activeDay} onClick={() => setActiveDay(i)}>
+          <button
+            key={key}
+            className="day"
+            aria-pressed={i === activeDay}
+            /* The visible label is two spans, "Mon" and "21", which a screen reader runs
+               together as "Mon21". The full date is spelled out here instead. */
+            aria-label={fmt(daySlots[0].start, zone, {
+              weekday: "long",
+              day: "numeric",
+              month: "long",
+            })}
+            onClick={() => {
+              setActiveDay(i);
+              setAnnouncement(describeDay([key, daySlots]));
+            }}
+          >
             <span className="day__dow">{fmt(daySlots[0].start, zone, { weekday: "short" })}</span>
             <span className="day__num">{fmt(daySlots[0].start, zone, { day: "numeric" })}</span>
           </button>
@@ -225,7 +284,14 @@ export function PublicBookingFlow({
 
       <div className="times" role="group" aria-label="Choose a time">
         {times.map((s) => (
-          <button key={s.start} className="time" onClick={() => setChosen(s)}>
+          <button
+            key={s.start}
+            className="time"
+            onClick={() => {
+              setChosen(s);
+              setAnnouncement("Time selected. Enter your details to finish booking.");
+            }}
+          >
             <time dateTime={s.start}>
               {fmt(s.start, zone, { hour: "2-digit", minute: "2-digit", hour12: false })}
             </time>
