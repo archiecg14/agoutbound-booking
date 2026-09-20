@@ -16,6 +16,17 @@ const base: BookingNotification = {
   source: "public",
 };
 
+test("the opening line takes the article the event name needs", () => {
+  // This line shipped as "has booked a intro call" because nothing asserted it.
+  const { text } = composeBookingEmail(base);
+  assert.match(text, /has booked an intro call\./);
+});
+
+test("an event name starting on a consonant takes 'a'", () => {
+  const { text } = composeBookingEmail({ ...base, eventName: "Discovery call" });
+  assert.match(text, /has booked a discovery call\./);
+});
+
 test("the subject says who and when, so it reads on a lock screen", () => {
   const { subject } = composeBookingEmail(base);
   assert.match(subject, /New booking: Jane Okafor/);

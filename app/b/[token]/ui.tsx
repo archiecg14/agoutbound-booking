@@ -1,5 +1,6 @@
 "use client";
 
+import { resolveActiveDay } from "@/lib/day-grid";
 import { useEffect, useMemo, useRef, useState } from "react";
 
 export type Slot = { start: string; end: string };
@@ -35,8 +36,19 @@ function dayKey(iso: string, tz: string): string {
   }).format(new Date(iso));
 }
 
-function fmt(iso: string, tz: string, opts: Intl.DateTimeFormatOptions): string {
-  return new Intl.DateTimeFormat("en-GB", { timeZone: tz, ...opts }).format(new Date(iso));
+// One formatter per (zone, options) instead of one per call. A picker render formats every
+// slot button plus every day label, so this was constructing dozens of Intl.DateTimeFormat
+// instances on every keystroke-free re-render, and Intl construction is not cheap.
+const formatters = new Map<string, Intl.DateTimeFormat>();
+
+export function fmt(iso: string, tz: string, opts: Intl.DateTimeFormatOptions): string {
+  const key = tz + "\u0000" + JSON.stringify(opts);
+  let f = formatters.get(key);
+  if (!f) {
+    f = new Intl.DateTimeFormat("en-GB", { timeZone: tz, ...opts });
+    formatters.set(key, f);
+  }
+  return f.format(new Date(iso));
 }
 
 export function BookingFlow({ token, data }: { token: string; data: BookingData }) {
@@ -68,10 +80,7 @@ export function BookingFlow({ token, data }: { token: string; data: BookingData 
   // prospect sees an empty grid, no day selected, and nothing explaining why. A key either
   // still exists in the new list or it does not, and "does not" falls back to the first day.
   const [activeDayKey, setActiveDayKey] = useState<string | null>(null);
-  const activeDay = Math.max(
-    0,
-    days.findIndex(([k]) => k === activeDayKey),
-  );
+  const activeDay = resolveActiveDay(days, activeDayKey);
   const times = days[activeDay]?.[1] ?? [];
 
   const leadName = [data.lead.first, data.lead.last].filter(Boolean).join(" ").trim();
@@ -218,11 +227,10 @@ export function BookingFlow({ token, data }: { token: string; data: BookingData 
             aria-pressed={i === activeDay}
             /* The visible label is two spans, "Mon" and "21", run together as "Mon21" by
                a screen reader. The full date is spelled out here instead. */
-            aria-label={fmt(slots[0].start, zone, {
-              weekday: "long",
-              day: "numeric",
-              month: "long",
-            })}
+            /* "Monday 21" rather than the full date: it spells out what the two visible
+               spans run together as "Mon21", while keeping both visible tokens in the
+               accessible name for WCAG 2.5.3. */
+            aria-label={fmt(slots[0].start, zone, { weekday: "long", day: "numeric" })}
             onClick={() => {
               setActiveDayKey(key);
               setAnnouncement(describeDay(slots));

@@ -2,7 +2,8 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { Slot } from "../../../b/[token]/ui";
-import { Booked } from "../../../b/[token]/ui";
+import { Booked, fmt } from "../../../b/[token]/ui";
+import { resolveActiveDay } from "@/lib/day-grid";
 
 /**
  * The public flow. Same two steps as the per-lead page, with one difference that matters:
@@ -18,10 +19,6 @@ function detectZone(): string {
   } catch {
     return "UTC";
   }
-}
-
-function fmt(iso: string, tz: string, opts: Intl.DateTimeFormatOptions) {
-  return new Intl.DateTimeFormat("en-GB", { timeZone: tz, ...opts }).format(new Date(iso));
 }
 
 function dayKey(iso: string, tz: string) {
@@ -75,10 +72,7 @@ export function PublicBookingFlow({
     return [...map.entries()].sort(([a], [b]) => a.localeCompare(b));
   }, [slots, zone]);
 
-  const activeDay = Math.max(
-    0,
-    days.findIndex(([k]) => k === activeDayKey),
-  );
+  const activeDay = resolveActiveDay(days, activeDayKey);
   const times = days[activeDay]?.[1] ?? [];
 
   // Picking a time replaces the whole grid with a form. Without moving focus, a keyboard
@@ -96,9 +90,9 @@ export function PublicBookingFlow({
     setAnnouncement(message);
   }
 
-  function describeDay(day: [string, Slot[]]) {
-    const count = day[1].length;
-    return `${count} ${count === 1 ? "time" : "times"} available on ${fmt(day[1][0].start, zone, {
+  function describeDay(daySlots: Slot[]) {
+    const count = daySlots.length;
+    return `${count} ${count === 1 ? "time" : "times"} available on ${fmt(daySlots[0].start, zone, {
       weekday: "long",
       day: "numeric",
       month: "long",
@@ -145,21 +139,27 @@ export function PublicBookingFlow({
     }
   }
 
+  // One region, at the same position in every branch, so React keeps the same DOM node
+  // when the step changes. A live region that mounts with its text already in place is not
+  // reliably announced; one that is already mounted and then changes is. Two regions in
+  // sibling branches meant the "time selected" and 409 messages were never spoken.
+  const liveRegion = (
+    <p className="sr-only" role="status" aria-live="polite">
+      {announcement}
+    </p>
+  );
+
+  let content: React.ReactNode;
+
   if (done) {
-    return done.confirmed ? (
+    content = done.confirmed ? (
       <Booked start={done.slot.start} zone={zone} email={form.email} />
     ) : (
       <CheckYourEmail start={done.slot.start} zone={zone} email={form.email} />
     );
-  }
-
-  if (chosen) {
-    return (
+  } else if (chosen) {
+    content = (
       <form onSubmit={submit}>
-        <p className="sr-only" role="status" aria-live="polite">
-          {announcement}
-        </p>
-
         {/* tabIndex -1 makes this focusable programmatically but keeps it out of the tab
             order. Focusing the heading rather than the first input means the step is
             announced before the field, so nobody is typing into an unexplained box. */}
@@ -244,10 +244,9 @@ export function PublicBookingFlow({
         </button>
       </form>
     );
-  }
+  } else if (days.length === 0) {
 
-  if (days.length === 0) {
-    return (
+    content = (
       <div className="state">
         <div className="state__title">No times available</div>
         <p className="state__body">
@@ -255,15 +254,10 @@ export function PublicBookingFlow({
         </p>
       </div>
     );
-  }
-
-  return (
+  } else {
+    content = (
     <div>
-      <p className="sr-only" role="status" aria-live="polite">
-        {announcement}
-      </p>
-
-      <h2 className="sr-only">Choose a time</h2>
+      <h2 className="sr-only">Choose a day and time</h2>
 
       {notice ? <div className="notice" role="alert">{notice}</div> : null}
 
@@ -275,14 +269,13 @@ export function PublicBookingFlow({
             aria-pressed={i === activeDay}
             /* The visible label is two spans, "Mon" and "21", which a screen reader runs
                together as "Mon21". The full date is spelled out here instead. */
-            aria-label={fmt(daySlots[0].start, zone, {
-              weekday: "long",
-              day: "numeric",
-              month: "long",
-            })}
+            /* "Monday 21" rather than the full date: it spells out what the two visible
+               spans run together as "Mon21", while keeping both visible tokens in the
+               accessible name for WCAG 2.5.3. */
+            aria-label={fmt(daySlots[0].start, zone, { weekday: "long", day: "numeric" })}
             onClick={() => {
               setActiveDayKey(key);
-              setAnnouncement(describeDay([key, daySlots]));
+              setAnnouncement(describeDay(daySlots));
             }}
           >
             <span className="day__dow">{fmt(daySlots[0].start, zone, { weekday: "short" })}</span>
@@ -324,12 +317,20 @@ export function PublicBookingFlow({
       {fallbackUrl ? (
         <p className="tz">
           None of these work?{" "}
-          <a href={fallbackUrl} target="_top" rel="noopener">
+          <a href={fallbackUrl} target="_top">
             Send a message instead
           </a>
         </p>
       ) : null}
     </div>
+    );
+  }
+
+  return (
+    <>
+      {liveRegion}
+      {content}
+    </>
   );
 }
 
