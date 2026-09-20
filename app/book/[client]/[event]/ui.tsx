@@ -54,7 +54,12 @@ export function PublicBookingFlow({
   const [form, setForm] = useState({ name: "", email: "", note: "", company: "" });
   const [busy, setBusy] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
-  const [activeDay, setActiveDay] = useState(0);
+  // Keyed, not indexed. `days` is rebuilt whenever the zone changes, and a positional
+  // index survives that rebuild pointing at a different day — or past the end, which
+  // renders an empty grid with no day selected and nothing to explain it. A key either
+  // still exists in the new list or it does not, and "does not" falls back to the first
+  // day rather than to nothing.
+  const [activeDayKey, setActiveDayKey] = useState<string | null>(null);
   // Sighted users see the slot grid swap for a form. Everyone else gets told.
   const [announcement, setAnnouncement] = useState("");
   const formHeadingRef = useRef<HTMLHeadingElement>(null);
@@ -70,6 +75,10 @@ export function PublicBookingFlow({
     return [...map.entries()].sort(([a], [b]) => a.localeCompare(b));
   }, [slots, zone]);
 
+  const activeDay = Math.max(
+    0,
+    days.findIndex(([k]) => k === activeDayKey),
+  );
   const times = days[activeDay]?.[1] ?? [];
 
   // Picking a time replaces the whole grid with a form. Without moving focus, a keyboard
@@ -272,7 +281,7 @@ export function PublicBookingFlow({
               month: "long",
             })}
             onClick={() => {
-              setActiveDay(i);
+              setActiveDayKey(key);
               setAnnouncement(describeDay([key, daySlots]));
             }}
           >

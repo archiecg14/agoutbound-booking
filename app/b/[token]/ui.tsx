@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 
 export type Slot = { start: string; end: string };
 
@@ -46,6 +46,9 @@ export function BookingFlow({ token, data }: { token: string; data: BookingData 
   const [note, setNote] = useState("");
   const [busy, setBusy] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
+  // Sighted users watch the grid swap for a confirm step. Everyone else gets told.
+  const [announcement, setAnnouncement] = useState("");
+  const confirmHeadingRef = useRef<HTMLHeadingElement>(null);
 
   // Group into days in the PROSPECT's zone, not the host's. Their Tuesday may be the host's
   // Monday, and the day strip has to read correctly for the person looking at it.
@@ -60,10 +63,39 @@ export function BookingFlow({ token, data }: { token: string; data: BookingData 
     return [...map.entries()].sort(([a], [b]) => a.localeCompare(b));
   }, [data.slots, zone]);
 
-  const [activeDay, setActiveDay] = useState(0);
+  // Keyed, not indexed. `days` is rebuilt whenever the zone changes, and a positional
+  // index survives that rebuild pointing at a different day — or past the end, where the
+  // prospect sees an empty grid, no day selected, and nothing explaining why. A key either
+  // still exists in the new list or it does not, and "does not" falls back to the first day.
+  const [activeDayKey, setActiveDayKey] = useState<string | null>(null);
+  const activeDay = Math.max(
+    0,
+    days.findIndex(([k]) => k === activeDayKey),
+  );
   const times = days[activeDay]?.[1] ?? [];
 
   const leadName = [data.lead.first, data.lead.last].filter(Boolean).join(" ").trim();
+
+  // Moving to the confirm step replaces the grid. Focus has to follow it, or a keyboard
+  // or screen-reader user is left standing where the grid used to be.
+  useEffect(() => {
+    if (phase === "confirm") confirmHeadingRef.current?.focus();
+  }, [phase]);
+
+  /** A failure the user has to act on: shown, and said out loud. */
+  function fail(message: string) {
+    setNotice(message);
+    setAnnouncement(message);
+  }
+
+  function describeDay(daySlots: Slot[]) {
+    const count = daySlots.length;
+    return `${count} ${count === 1 ? "time" : "times"} available on ${fmt(daySlots[0].start, zone, {
+      weekday: "long",
+      day: "numeric",
+      month: "long",
+    })}.`;
+  }
 
   async function confirm() {
     if (!chosen) return;
@@ -91,23 +123,38 @@ export function BookingFlow({ token, data }: { token: string; data: BookingData 
       // A lost slot returns the prospect to the picker with the reason inline. Replacing the
       // page with an error would lose someone who was one tap from booking.
       const body = (await res.json().catch(() => ({}))) as { error?: string };
-      setNotice(body.error ?? "That did not work. Please try another time.");
+      fail(body.error ?? "That did not work. Please try another time.");
       setPhase("pick");
       setChosen(null);
     } catch {
-      setNotice("We could not reach the server. Please try again.");
+      fail("We could not reach the server. Please try again.");
     } finally {
       setBusy(false);
     }
   }
 
-  if (phase === "done" && chosen) {
-    return <Booked start={chosen.start} zone={zone} email={data.lead.email} />;
-  }
+  // One region, at the same position in every branch, so React keeps the same DOM node
+  // when the phase changes. A live region that mounts with its text already in place is
+  // not reliably announced; one that is already mounted and then changes is.
+  const liveRegion = (
+    <p className="sr-only" role="status" aria-live="polite">
+      {announcement}
+    </p>
+  );
 
-  if (phase === "confirm" && chosen) {
-    return (
+  let content: React.ReactNode;
+
+  if (phase === "done" && chosen) {
+    content = <Booked start={chosen.start} zone={zone} email={data.lead.email} />;
+  } else if (phase === "confirm" && chosen) {
+    content = (
       <div>
+        {/* tabIndex -1 keeps this out of the tab order while letting focus land on it, so
+            the step is announced before the first field. */}
+        <h2 className="sr-only" tabIndex={-1} ref={confirmHeadingRef}>
+          Confirm your booking
+        </h2>
+
         <div className="chosen">
           <div className="chosen__when">
             {fmt(chosen.start, zone, { weekday: "long", day: "numeric", month: "long" })}
@@ -146,10 +193,8 @@ export function BookingFlow({ token, data }: { token: string; data: BookingData 
         </button>
       </div>
     );
-  }
-
-  if (days.length === 0) {
-    return (
+  } else if (days.length === 0) {
+    content = (
       <div className="state">
         <div className="state__title">No times available</div>
         <p className="state__body">
@@ -158,11 +203,12 @@ export function BookingFlow({ token, data }: { token: string; data: BookingData 
         </p>
       </div>
     );
-  }
+  } else {
+    content = (
+      <div>
+      <h2 className="sr-only">Choose a day and time</h2>
 
-  return (
-    <div>
-      {notice ? <div className="notice">{notice}</div> : null}
+      {notice ? <div className="notice" role="alert">{notice}</div> : null}
 
       <div className="days" role="group" aria-label="Choose a day">
         {days.map(([key, slots], i) => (
@@ -170,7 +216,17 @@ export function BookingFlow({ token, data }: { token: string; data: BookingData 
             key={key}
             className="day"
             aria-pressed={i === activeDay}
-            onClick={() => setActiveDay(i)}
+            /* The visible label is two spans, "Mon" and "21", run together as "Mon21" by
+               a screen reader. The full date is spelled out here instead. */
+            aria-label={fmt(slots[0].start, zone, {
+              weekday: "long",
+              day: "numeric",
+              month: "long",
+            })}
+            onClick={() => {
+              setActiveDayKey(key);
+              setAnnouncement(describeDay(slots));
+            }}
           >
             <span className="day__dow">
               {fmt(slots[0].start, zone, { weekday: "short" })}
@@ -188,6 +244,7 @@ export function BookingFlow({ token, data }: { token: string; data: BookingData 
             onClick={() => {
               setChosen(s);
               setPhase("confirm");
+              setAnnouncement("Time selected. Confirm to finish booking.");
             }}
           >
             <time dateTime={s.start}>
@@ -203,7 +260,15 @@ export function BookingFlow({ token, data }: { token: string; data: BookingData 
           {zone === "UTC" ? "Use my timezone" : "Show in UTC"}
         </button>
       </p>
-    </div>
+      </div>
+    );
+  }
+
+  return (
+    <>
+      {liveRegion}
+      {content}
+    </>
   );
 }
 
