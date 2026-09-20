@@ -74,7 +74,12 @@ export default async function Page(props: PageProps<"/book/[client]/[event]">) {
           body="We can't read availability right now. Please try again shortly."
         />
       ) : (
-        <PublicBookingFlow clientSlug={client} eventSlug={event} slots={slots} />
+        <PublicBookingFlow
+          clientSlug={client}
+          eventSlug={event}
+          slots={slots}
+          fallbackUrl={loaded.context.client.fallbackUrl}
+        />
       )}
 
       {embedded ? null : <footer className="chrome">Scheduling by AG Outbound</footer>}

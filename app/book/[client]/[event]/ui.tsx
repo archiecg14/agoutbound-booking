@@ -37,10 +37,13 @@ export function PublicBookingFlow({
   clientSlug,
   eventSlug,
   slots,
+  fallbackUrl,
 }: {
   clientSlug: string;
   eventSlug: string;
   slots: Slot[];
+  /** Where to send someone none of the offered days suit. Null renders nothing. */
+  fallbackUrl?: string | null;
 }) {
   const [zone, setZone] = useState(detectZone);
   const [chosen, setChosen] = useState<Slot | null>(null);
@@ -236,6 +239,21 @@ export function PublicBookingFlow({
           {zone === "UTC" ? "Use my timezone" : "Show in UTC"}
         </button>
       </p>
+
+      {/*
+        The window is deliberately short, so someone away for all of it sees no workable
+        time and has no move but to close the tab. target="_top" because this page is
+        usually inside a modal iframe on the client's own site: without it the site would
+        load inside its own popup.
+      */}
+      {fallbackUrl ? (
+        <p className="tz">
+          None of these work?{" "}
+          <a href={fallbackUrl} target="_top" rel="noopener">
+            Send a message instead
+          </a>
+        </p>
+      ) : null}
     </div>
   );
 }

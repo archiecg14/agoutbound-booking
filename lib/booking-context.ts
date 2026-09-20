@@ -52,7 +52,7 @@ export type BookingContext = {
   };
   connection: { id: string; refreshToken: string; email: string; status: string };
   /** The client the prospect was actually emailed by — the dominant name on the page. */
-  client: { id: string; name: string };
+  client: { id: string; name: string; fallbackUrl: string | null };
 };
 
 export type ContextResult =
@@ -98,7 +98,7 @@ export async function loadBookingContext(
 
   const { data: client } = await db
     .from("clients")
-    .select("id, name, active")
+    .select("id, name, active, fallback_url")
     .eq("id", t.client_id)
     .maybeSingle();
 
@@ -108,7 +108,7 @@ export async function loadBookingContext(
   return {
     ok: true,
     context: {
-      client: { id: client.id, name: client.name },
+      client: { id: client.id, name: client.name, fallbackUrl: client.fallback_url ?? null },
       token: {
         id: t.id,
         eventTypeId: t.event_type_id,
@@ -170,7 +170,7 @@ export async function loadPublicContext(
 > {
   const { data: client } = await db
     .from("clients")
-    .select("id, name, active")
+    .select("id, name, active, fallback_url")
     .eq("slug", clientSlug)
     .maybeSingle();
   if (!client || !client.active) return { ok: false, reason: "not_found" };
@@ -199,7 +199,7 @@ export async function loadPublicContext(
   return {
     ok: true,
     context: {
-      client: { id: client.id, name: client.name },
+      client: { id: client.id, name: client.name, fallbackUrl: client.fallback_url ?? null },
       eventType: {
         id: et.id,
         clientId: et.client_id,
