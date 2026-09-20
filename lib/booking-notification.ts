@@ -13,6 +13,7 @@
  * callers log and move on.
  */
 
+import { withArticle } from "./indefinite-article.ts";
 import { sendEmail, senderConfigured, fromAddressProblem } from "./email-sender.ts";
 
 export type BookingNotification = {
@@ -48,7 +49,7 @@ export function composeBookingEmail(n: BookingNotification): { subject: string; 
   const subject = `New booking: ${who} — ${day}, ${from}`;
 
   const lines = [
-    `${who} has booked a ${n.eventName.toLowerCase()}.`,
+    `${who} has booked ${withArticle(n.eventName.toLowerCase())}.`,
     "",
     `When:  ${day}, ${from}–${to} (${tz.replace(/_/g, " ")})`,
     `Email: ${n.attendeeEmail}`,

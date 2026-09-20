@@ -1,6 +1,7 @@
 import { notFound } from "next/navigation";
 import "../../../b/booking.css";
 import { serviceClient } from "@/lib/supabase";
+import { withArticle } from "@/lib/indefinite-article";
 import {
   CalendarUnavailable,
   DEFAULT_RANGE_DAYS,
@@ -24,7 +25,7 @@ export async function generateMetadata(props: PageProps<"/book/[client]/[event]"
   const loaded = await loadPublicContext(serviceClient(), client, event);
   if (!loaded.ok) return { title: "Book a call" };
   return {
-    title: `Book a ${loaded.context.eventType.name.toLowerCase()} — ${loaded.context.client.name}`,
+    title: `Book ${withArticle(loaded.context.eventType.name.toLowerCase())} — ${loaded.context.client.name}`,
     description: loaded.context.eventType.description ?? "Pick a time that suits you.",
     // The root layout sets noindex for every page, which is right for per-lead links sent
     // to one person. This page is meant to be found, so it opts back in explicitly.
