@@ -11,7 +11,7 @@ import { Booked, BookingFlow, DeadLink, Identity } from "../../b/[token]/ui";
  * is exactly the thing that makes a genuine one look untrustworthy.
  */
 
-const client = { name: "MKA Recruitment" };
+const client = { name: "Acme Recruitment" };
 const event = { name: "Intro call", description: null, durationMin: 30 };
 const lead = {
   first: "Jane",

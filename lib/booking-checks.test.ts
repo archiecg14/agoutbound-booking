@@ -143,7 +143,7 @@ test("a token pointing at a different event type is refused", () => {
 });
 
 test("a token crossing client boundaries is refused", () => {
-  // The important one: MKA's link must never book into Supply Drive's calendar.
+  // The important one: one client's link must never book into another client's calendar.
   const d = decide({ eventType: eventType({ clientId: "cl-OTHER" }) });
   assert.deepEqual(d, { ok: false, reason: "event_mismatch" });
 });

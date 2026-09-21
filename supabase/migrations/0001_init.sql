@@ -17,7 +17,7 @@ create extension if not exists btree_gist;
 -- ─────────────────────────────────────────────────────────────────────────────
 create table clients (
   id          uuid primary key default gen_random_uuid(),
-  slug        text not null unique,          -- 'mka', 'supplydrive' — matches leadbuild config
+  slug        text not null unique,          -- 'acme', 'northwind' — matches leadbuild config
   name        text not null,
   active      boolean not null default true,
   created_at  timestamptz not null default now()

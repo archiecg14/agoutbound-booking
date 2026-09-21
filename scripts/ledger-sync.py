@@ -207,7 +207,7 @@ def read_ledger(path):
 def resolve_client_id(slug):
     """Map the config's client slug to the clients.id UUID that bookings are keyed by.
 
-    The client config carries `client` (e.g. "mka"), while bookings.client_id is a UUID
+    The client config carries `client` (e.g. "acme"), while bookings.client_id is a UUID
     foreign key. Filtering bookings by the slug would match nothing and report a perfectly
     clean, entirely fictional result -- the worst possible failure for a checker.
     """

@@ -98,8 +98,8 @@ test("an already-sent reminder is never reconsidered", () => {
 });
 
 test("subjects name the client", () => {
-  assert.match(subjectFor("day_before", "MKA Recruitment"), /Tomorrow.*MKA Recruitment/);
-  assert.match(subjectFor("hour_before", "MKA Recruitment"), /In an hour/);
+  assert.match(subjectFor("day_before", "Acme Recruitment"), /Tomorrow.*Acme Recruitment/);
+  assert.match(subjectFor("hour_before", "Acme Recruitment"), /In an hour/);
 });
 
 // ── sender configuration ────────────────────────────────────────────────────
@@ -109,7 +109,7 @@ test("a reminder must not be sent from a cold-outreach domain", () => {
   // should never stop a confirmed attendee being reminded.
   const saved = { from: process.env.REMINDER_FROM, cold: process.env.COLD_EMAIL_DOMAINS };
   try {
-    process.env.COLD_EMAIL_DOMAINS = "mka-recruitment.com, agoutbound-mail.co.uk";
+    process.env.COLD_EMAIL_DOMAINS = "acme-recruitment.com, agoutbound-mail.co.uk";
 
     process.env.REMINDER_FROM = "bookings@agoutbound-mail.co.uk";
     assert.match(fromAddressProblem() ?? "", /cold-outreach domain/);

@@ -47,11 +47,11 @@ access to every client's contact data. Treat it like a database password, becaus
    ```sql
    insert into clients (slug, name) values
      ('agoutbound', 'AG Outbound'),
-     ('mka', 'MKA Recruitment');
+     ('acme', 'Acme Recruitment');
    ```
 
    For a client you run outreach for, the slug must match the `client` field in its
-   leadbuild config (`~/.claude/skills/leadbuild/clients/mka.json`) — `reconcile.py` and
+   leadbuild config (`~/.claude/skills/leadbuild/clients/acme.json`) — `reconcile.py` and
    `ledger-sync.py` both look the client up by it. `agoutbound` is your own row, for the
    public page; it has no leadbuild config and does not need one.
 
