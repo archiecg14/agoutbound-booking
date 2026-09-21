@@ -12,7 +12,11 @@ import { makeInvite, signPayload } from "./oauth.ts";
 
 process.env.SIGNING_KEY = "test-signing-secret";
 
-const END = "2026-09-20T09:30:00.000Z";
+// Relative to now, deliberately. mintManageToken bakes a real expiry into the token and
+// verifyPayload checks it against the wall clock, so a fixed date here is a time bomb:
+// these tests pass until END + MANAGE_GRACE_HOURS has gone by, then fail forever.
+// START below stays fixed on purpose — canManage takes an injected `now`.
+const END = new Date(Date.now() + 3_600_000).toISOString();
 const START = "2026-09-20T09:00:00.000Z";
 
 test("a manage token round-trips and carries its booking", () => {
