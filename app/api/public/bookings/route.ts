@@ -208,7 +208,7 @@ export async function POST(request: Request) {
     await finaliseBooking(db, {
       booking: { id: direct.id, startUtc: direct.start_utc, endUtc: direct.end_utc },
       connection: { id: connection.id, refreshToken: connection.refreshToken, email: connection.email },
-      client: { name: client.name },
+      client: { name: client.name, meetingUrl: client.meetingUrl },
       eventType: { name: eventType.name },
       attendee: { name: req.name, email: req.email },
       note: req.note,

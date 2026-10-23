@@ -11,6 +11,7 @@ import { serviceClient } from "@/lib/supabase";
 import { checkBearer } from "@/lib/api-auth";
 import { sendEmail, senderConfigured, fromAddressProblem } from "@/lib/email-sender";
 import { decide, subjectFor, type ReminderKind } from "@/lib/reminders";
+import { joinLine } from "@/lib/meeting";
 
 export async function POST(request: Request) {
   const auth = checkBearer(request.headers.get("authorization"), process.env.CRON_SECRET);
@@ -46,7 +47,7 @@ export async function POST(request: Request) {
       .maybeSingle();
 
     const { data: client } = b
-      ? await db.from("clients").select("name").eq("id", b.client_id).maybeSingle()
+      ? await db.from("clients").select("name, meeting_url").eq("id", b.client_id).maybeSingle()
       : { data: null };
 
     const decision = decide(
@@ -99,7 +100,9 @@ export async function POST(request: Request) {
     const result = await sendEmail({
       to: b!.attendee_email,
       subject,
-      text: `${subject}\n\nIf you need to move or cancel it, use the link in your calendar invitation.`,
+      text: [subject, joinLine(client?.meeting_url as string | null), "If you need to move or cancel it, use the link in your calendar invitation."]
+        .filter(Boolean)
+        .join("\n\n"),
     });
 
     if (result.ok) {

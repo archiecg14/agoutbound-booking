@@ -36,6 +36,7 @@ import { createEvent } from "@/lib/google-calendar";
 import { manageUrl, mintManageToken } from "@/lib/manage";
 import { notifyHost } from "@/lib/booking-notification";
 import { scheduleFor } from "@/lib/reminders";
+import { joinLine } from "@/lib/meeting";
 
 const DAY_MS = 86_400_000;
 
@@ -178,7 +179,8 @@ export async function POST(request: Request) {
       { id: connection.id, refreshToken: connection.refreshToken },
       {
         summary: eventType.name,
-        description: [req.note, manageLine].filter(Boolean).join("\n\n") || undefined,
+        description: [joinLine(loaded.context.client.meetingUrl), req.note, manageLine].filter(Boolean).join("\n\n") || undefined,
+        location: loaded.context.client.meetingUrl ?? undefined,
         startIso: booking.start_utc,
         endIso: booking.end_utc,
         attendeeEmail: req.attendeeEmail,

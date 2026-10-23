@@ -16,12 +16,13 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { createEvent } from "./google-calendar.ts";
 import { manageUrl, mintManageToken } from "./manage.ts";
 import { notifyHost } from "./booking-notification.ts";
+import { joinLine } from "./meeting.ts";
 import { scheduleFor } from "./reminders.ts";
 
 export type FinaliseInput = {
   booking: { id: string; startUtc: string; endUtc: string };
   connection: { id: string; refreshToken: string; email: string };
-  client: { name: string };
+  client: { name: string; meetingUrl?: string | null };
   eventType: { name: string };
   attendee: { name: string; email: string };
   note: string | null;
@@ -65,7 +66,12 @@ export async function finaliseBooking(
         // for both: Google mails this invitation from the client's real account, so the
         // description is a delivery channel wearing a trusted sender's name. The host still
         // gets the note in the notification below.
-        description: input.source === "public" ? (manageLine ?? undefined) : [input.note, manageLine].filter(Boolean).join("\n\n") || undefined,
+        description:
+          (input.source === "public"
+            ? [joinLine(client.meetingUrl), manageLine]
+            : [joinLine(client.meetingUrl), input.note, manageLine]
+          ).filter(Boolean).join("\n\n") || undefined,
+        location: client.meetingUrl ?? undefined,
         startIso: booking.startUtc,
         endIso: booking.endUtc,
         attendeeEmail: attendee.email,

@@ -86,6 +86,11 @@ export default async function Page(props: PageProps<"/c/[token]">) {
 
   const tz = (b.attendee_tz as string) || "UTC";
 
+  // Read on every visit, not only the first: someone reopening this link the morning of the
+  // call is exactly the person who needs to know where to join.
+  const { data: meetingRow } = await db.from("clients").select("meeting_url").eq("id", b.client_id).maybeSingle();
+  const meetingUrl = (meetingRow?.meeting_url as string | null) ?? null;
+
   if (!allowed.already) {
     // Conditional on the row still being pending, so two clicks in the same second cannot
     // both go on to create a calendar event. Whoever loses simply sees the success page.
@@ -107,7 +112,7 @@ export default async function Page(props: PageProps<"/c/[token]">) {
     if (claimed) {
       const [{ data: conn }, { data: client }, { data: et }] = await Promise.all([
         db.from("connections").select("id, refresh_token_enc, email").eq("id", b.connection_id).maybeSingle(),
-        db.from("clients").select("name").eq("id", b.client_id).maybeSingle(),
+        db.from("clients").select("name, meeting_url").eq("id", b.client_id).maybeSingle(),
         db.from("event_types").select("name").eq("id", b.event_type_id).maybeSingle(),
       ]);
 
@@ -122,7 +127,7 @@ export default async function Page(props: PageProps<"/c/[token]">) {
               : (conn.refresh_token_enc as string),
             email: conn.email as string,
           },
-          client: { name: (client?.name as string) ?? "" },
+          client: { name: (client?.name as string) ?? "", meetingUrl: (client?.meeting_url as string | null) ?? null },
           eventType: { name: (et?.name as string) ?? "Call" },
           attendee: { name: b.attendee_name as string, email: b.attendee_email as string },
           note: answers.note ?? null,
@@ -150,6 +155,11 @@ export default async function Page(props: PageProps<"/c/[token]">) {
           <br />
           A calendar invitation is on its way to {b.attendee_email as string}.
         </p>
+        {meetingUrl ? (
+          <p className="state__body">
+            Join the call: <a href={meetingUrl} target="_blank" rel="noopener noreferrer">{meetingUrl}</a>
+          </p>
+        ) : null}
       </div>
     </Shell>
   );

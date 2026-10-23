@@ -102,6 +102,8 @@ export async function createEvent(
     endIso: string;
     attendeeEmail: string;
     attendeeName?: string;
+    /** Where the call happens. Google shows it as the event location, with a join button for known video links. */
+    location?: string;
     /** Our booking id, so a calendar event can always be traced back to a row. */
     idempotencyKey: string;
   },
@@ -120,6 +122,7 @@ export async function createEvent(
     body: JSON.stringify({
       summary: event.summary,
       description: event.description,
+      location: event.location,
       start: { dateTime: event.startIso, timeZone: "UTC" },
       end: { dateTime: event.endIso, timeZone: "UTC" },
       attendees: [{ email: event.attendeeEmail, displayName: event.attendeeName }],
